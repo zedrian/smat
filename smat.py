@@ -1,4 +1,5 @@
 from math import sqrt
+import numpy
 from Bio import pairwise2
 from Bio.PDB import *
 from Bio.PDB import Residue
@@ -18,6 +19,27 @@ cofactor_residue_names = ['GDP', 'GTP', 'ADP', 'ATP', 'FMN', 'FAD', 'NAD', 'HEM'
 aa_residue_letters = ['A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y',
                       'V']
 aa_residues = dict()
+
+
+class BoundingBox:
+    def __init__(self):
+        self.min_x = 1.0e+10
+        self.max_x = -1.0e+10
+        self.min_y = 1.0e+10
+        self.max_y = -1.0e+10
+        self.min_z = 1.0e+10
+        self.max_z = -1.0e+10
+
+    def store_point(self, x: float, y: float, z: float):
+        self.min_x = min(self.min_x, x)
+        self.max_x = max(self.max_x, x)
+        self.min_y = min(self.min_y, y)
+        self.max_y = max(self.max_y, y)
+        self.min_z = min(self.min_z, z)
+        self.max_z = max(self.max_z, z)
+
+    def __str__(self):
+        return f'[{self.min_x}..{self.max_x}] [{self.min_y}..{self.max_y}] [{self.min_z}..{self.max_z}]'
 
 
 def get_chain(structure: Structure) -> Chain:
@@ -88,6 +110,20 @@ def is_ligand(residue: Residue) -> bool:
             return True
 
 
+def get_center_of_mass(residue: Residue) -> list:
+    center_of_mass = None
+    mass = 0.0
+    for atom in residue.get_atoms():
+        if center_of_mass is None:
+            center_of_mass = atom.coord * atom.mass
+        else:
+            center_of_mass = center_of_mass + atom.coord * atom.mass
+        mass = mass + atom.mass
+    center_of_mass = center_of_mass / mass
+
+    return [center_of_mass[0], center_of_mass[1], center_of_mass[2]]
+
+
 def get_ligand(chain: Chain) -> Residue:
     # - go through residues that are not AA and cofactors and are greater than of 6 atoms (not including H)
     # - all of them are candidates for being ligands
@@ -105,6 +141,7 @@ def get_ligand(chain: Chain) -> Residue:
                 chain_center_of_mass = chain_center_of_mass + atom.coord * atom.mass
             chain_mass = chain_mass + atom.mass
     chain_center_of_mass = chain_center_of_mass / chain_mass
+    chain_center_of_mass = [chain_center_of_mass[0], chain_center_of_mass[1], chain_center_of_mass[2]]
 
     closest_ligand = None
     closest_ligand_to_center_of_mass_squared_distance = 1e30 # just a big number
@@ -114,19 +151,10 @@ def get_ligand(chain: Chain) -> Residue:
         if not is_ligand(residue):
             continue
 
-        # compute ligand's center of mass
-        ligand_center_of_mass = None
-        ligand_mass = 0.0
-        for atom in residue.get_atoms():
-            if ligand_center_of_mass is None:
-                ligand_center_of_mass = atom.coord * atom.mass
-            else:
-                ligand_center_of_mass = ligand_center_of_mass + atom.coord * atom.mass
-            ligand_mass = ligand_mass + atom.mass
-        ligand_center_of_mass = ligand_center_of_mass / ligand_mass
+        ligand_center_of_mass = get_center_of_mass(residue)
 
         # measure distance to chain center of mass
-        delta_position = ligand_center_of_mass - chain_center_of_mass
+        delta_position = numpy.subtract(ligand_center_of_mass, chain_center_of_mass)
         squared_distance = delta_position[0]**2 + delta_position[1]**2 + delta_position[2]**2
 
         # compare with current best result
@@ -140,7 +168,7 @@ def get_ligand(chain: Chain) -> Residue:
     return closest_ligand
 
 
-def find_contacts(chain: Chain, ligand: Residue) -> list:
+def get_neighbor_atoms(chain: Chain, ligand: Residue) -> list:
     # use biopython neighboursearch to get list of AA atoms that close enough to ligand's atoms (using 10 angstroms)
     # - get list of all chain's atoms except ligand's atoms
     # - for each ligand's atom run neighbor search to find neighbors
@@ -166,15 +194,57 @@ def find_contacts(chain: Chain, ligand: Residue) -> list:
     return neighbour_atoms
 
 
-def get_potential_grid_coordinates(neighbour_atoms: list) -> list:
-    #
-    pass
+def get_bounding_box(atoms: list) -> BoundingBox:
+    box = BoundingBox()
+
+    for atom in atoms:
+        box.store_point(atom.coord[0], atom.coord[1], atom.coord[2])
+
+    return box
 
 
-def fill_potential_grid():
+def point_belongs_to_active_site(point: list, atoms: list, center: list) -> bool:
+    # for atom in atoms:
+    #     radius = get_van_der_waals_radius(atom)
+    #     if ray_intersects_sphere(center, point, atom.coord, radius):
+    #         return False
+
+    return True
+
+
+def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: BoundingBox, ligand_center_of_mass: list) -> list:
+    step = 0.2
+
+    grid_coordinates = list()
+
+    x = bounding_box.min_x
+    while x < bounding_box.max_x:
+        y = bounding_box.min_y
+        while y < bounding_box.max_y:
+            z = bounding_box.min_z
+            while z < bounding_box.max_z:
+                # do stuff
+                current_point = [x, y, z]
+                if point_belongs_to_active_site(current_point, neighbour_atoms, ligand_center_of_mass):
+                    grid_coordinates.append(current_point)
+
+                z += step
+
+            y += step
+
+        x += step
+
+    return grid_coordinates
+
+
+def calculate_potential(point: list, atoms: list) -> float:
+    # point is a list of coordinates like [x, y, z]
+    # atoms is a list of Atom objects
+
     # https://github.com/choderalab/ambermini/blob/master/share/amber/dat/leap/parm/parm10.dat
     # http://ambermd.org/formats.html#parm.dat
     pass
+
 
 if __name__ == '__main__':
     # prepare AA residues dictionary
@@ -185,12 +255,9 @@ if __name__ == '__main__':
     structure = parser.get_structure('6b82', 'Docking_killer/proteins/CYPs/6b82_referense.pdb')
     chain = get_chain(structure)
     ligand = get_ligand(chain)
-    neighbour_atoms = find_contacts(chain, ligand)
-
-    # with open('neighbours.csv', 'w') as file:
-    #     file.write('x,y,z\n')
-    #     for atom in neighbour_atoms:
-    #         file.write(f'{atom.coord[0]},{atom.coord[1]},{atom.coord[2]}\n')
+    neighbour_atoms = get_neighbor_atoms(chain, ligand)
+    bounding_box = get_bounding_box(neighbour_atoms)
+    grid_coordinates = get_potential_grid_coordinates(neighbour_atoms, bounding_box, get_center_of_mass(ligand))
 
     class NeighbourSelect(Select):
         def accept_atom(self, atom):
