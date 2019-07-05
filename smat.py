@@ -7,6 +7,8 @@ from Bio.PDB import NeighborSearch
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Structure import Structure
 from Bio.SubsMat.MatrixInfo import blosum62
+from pandas import read_csv, DataFrame
+from pprint import pprint
 
 
 # when computing electrostatic potential:
@@ -237,9 +239,39 @@ def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: Bounding
     return grid_coordinates
 
 
-def calculate_potential(point: list, atoms: list) -> float:
+def get_atoms_description() -> DataFrame:
+    # get atom types description ones for all other functions if needed
+
+    # divide prep file on described residues per lines
+    residues = dict()
+    index = 0
+    residues[index] = []
+    with open('Docking_killer/database/prep/all.in', 'r') as file:
+        for line in file.readlines():
+            if line.rstrip() != 'DONE':
+               residues[index].append(line.rstrip())
+            else:
+                index += 1
+                residues[index] = []
+                continue
+
+    for key, value in residues:
+        long_name = residues[key][0]
+        short_name = residues[key][2].split(' ')[0]
+    pprint(residues[43])
+
+
+
+    data = read_csv('Docking_killer/VanDerWaals.csv', header=0, delimiter=';')
+    return data
+
+
+def calculate_potential(atoms: list, atoms_desc: DataFrame) -> float:
     # point is a list of coordinates like [x, y, z]
     # atoms is a list of Atom objects
+
+    print(atoms[123].get_parent())
+
 
     # https://github.com/choderalab/ambermini/blob/master/share/amber/dat/leap/parm/parm10.dat
     # http://ambermd.org/formats.html#parm.dat
@@ -258,6 +290,9 @@ if __name__ == '__main__':
     neighbour_atoms = get_neighbor_atoms(chain, ligand)
     bounding_box = get_bounding_box(neighbour_atoms)
     grid_coordinates = get_potential_grid_coordinates(neighbour_atoms, bounding_box, get_center_of_mass(ligand))
+    atoms_desc = get_atoms_description()
+    # calculate_potential(neighbour_atoms, atoms_desc)
+
 
     class NeighbourSelect(Select):
         def accept_atom(self, atom):
