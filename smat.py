@@ -243,26 +243,34 @@ def get_atoms_description() -> DataFrame:
     # get atom types description ones for all other functions if needed
 
     # divide prep file on described residues per lines
-    residues = dict()
+    elements = dict()
     index = 0
-    residues[index] = []
+    elements[index] = []
     with open('Docking_killer/database/prep/all.in', 'r') as file:
-        for line in file.readlines():
+        for line in file.readlines()[3:]:
             if line.rstrip() != 'DONE':
-               residues[index].append(line.rstrip())
+               elements[index].append(line.rstrip())
             else:
                 index += 1
-                residues[index] = []
+                elements[index] = []
                 continue
 
-    for key, value in residues:
-        long_name = residues[key][0]
-        short_name = residues[key][2].split(' ')[0]
-    pprint(residues[43])
-
-
-
+    # get some data from csv table
     data = read_csv('Docking_killer/VanDerWaals.csv', header=0, delimiter=';')
+
+    # construct the final dict with proper data
+    residues = dict()
+    for key in elements.keys():
+        print(elements[key][0])
+        residues[elements[key][0]] = dict()
+        residues[elements[key][0]]['short_name'] = elements[key][2].split(' ')[0]
+        residues[elements[key][0]]['atoms'] = dict()
+        for line in elements[key][5:]:
+            while line != '':
+                line_elements = line.split(' ')
+                if line_elements[1] != 'DUMM':
+                    residues[elements[key][0]]['atoms'][line_elements[1]] = {'type': line_elements[2], 'charge': line_elements[10]}
+
     return data
 
 
