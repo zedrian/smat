@@ -241,37 +241,43 @@ def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: Bounding
 
 def get_atoms_description() -> DataFrame:
     # get atom types description ones for all other functions if needed
+    # some aa have 2 variants of protonation
 
     # divide prep file on described residues per lines
     elements = dict()
     index = 0
     elements[index] = []
     with open('Docking_killer/database/prep/all.in', 'r') as file:
-        for line in file.readlines()[3:]:
+        for line in file.readlines()[2:]:
             if line.rstrip() != 'DONE':
                elements[index].append(line.rstrip())
+            elif line.rstrip() == 'STOP':
+                break
             else:
                 index += 1
                 elements[index] = []
                 continue
 
     # get some data from csv table
-    data = read_csv('Docking_killer/VanDerWaals.csv', header=0, delimiter=';')
+    # data = read_csv('Docking_killer/VanDerWaals.csv', header=0, delimiter=';')
 
     # construct the final dict with proper data
     residues = dict()
     for key in elements.keys():
-        print(elements[key][0])
-        residues[elements[key][0]] = dict()
-        residues[elements[key][0]]['short_name'] = elements[key][2].split(' ')[0]
-        residues[elements[key][0]]['atoms'] = dict()
+        residues[key] = dict()
+        residues[key]['long_name'] = elements[key][0]
+        residues[key]['short_name'] = elements[key][2].split(' ')[1]
+        residues[key]['atoms'] = dict()
         for line in elements[key][5:]:
-            while line != '':
-                line_elements = line.split(' ')
-                if line_elements[1] != 'DUMM':
-                    residues[elements[key][0]]['atoms'][line_elements[1]] = {'type': line_elements[2], 'charge': line_elements[10]}
+            if line != '':
+                line_elements = [x for x in line.split(' ') if x != '']
+                if line_elements and line_elements[1] != 'DUMM':
+                    residues[key]['atoms'][line_elements[1]] = {'type': line_elements[2], 'charge': line_elements[10]}
+            else:
+                break
+    pprint(residues)
 
-    return data
+    return elements
 
 
 def calculate_potential(atoms: list, atoms_desc: DataFrame) -> float:
@@ -313,4 +319,3 @@ if __name__ == '__main__':
     io.set_structure(structure)
     io.save('neighbours_only.pdb', NeighbourSelect())
 
-    print(len(neighbour_atoms))
