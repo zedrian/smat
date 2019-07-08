@@ -249,14 +249,14 @@ def get_atoms_description() -> DataFrame:
     elements[index] = []
     with open('Docking_killer/database/prep/all.in', 'r') as file:
         for line in file.readlines()[2:]:
-            if line.rstrip() != 'DONE':
+            if line.rstrip() != 'DONE' and line.rstrip() != 'STOP':
                elements[index].append(line.rstrip())
-            elif line.rstrip() == 'STOP':
-                break
-            else:
+            elif line.rstrip() == 'DONE':
                 index += 1
                 elements[index] = []
                 continue
+            else:
+                break
 
     # get some data from csv table
     # data = read_csv('Docking_killer/VanDerWaals.csv', header=0, delimiter=';')
@@ -264,6 +264,8 @@ def get_atoms_description() -> DataFrame:
     # construct the final dict with proper data
     residues = dict()
     for key in elements.keys():
+        if elements[key] == []:
+            continue
         residues[key] = dict()
         residues[key]['long_name'] = elements[key][0]
         residues[key]['short_name'] = elements[key][2].split(' ')[1]
