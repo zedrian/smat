@@ -239,7 +239,7 @@ def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: Bounding
     return grid_coordinates
 
 
-def get_atoms_description() -> DataFrame:
+def get_atoms_description() ->dict:
     # get atom types description ones for all other functions if needed
     # some aa have 2 variants of protonation
 
@@ -259,13 +259,12 @@ def get_atoms_description() -> DataFrame:
                 break
 
     # get some data from csv table
-    # data = read_csv('Docking_killer/VanDerWaals.csv', header=0, delimiter=';')
+    data = read_csv('Docking_killer/VanDerWaals_2.csv', header=0, delimiter=';')
 
     # construct the final dict with proper data
+    # parsing the dictionary with lines
     residues = dict()
-    for key in elements.keys():
-        if elements[key] == []:
-            continue
+    for key in list(elements.keys())[:-1]:
         residues[key] = dict()
         residues[key]['long_name'] = elements[key][0]
         residues[key]['short_name'] = elements[key][2].split(' ')[1]
@@ -274,12 +273,47 @@ def get_atoms_description() -> DataFrame:
             if line != '':
                 line_elements = [x for x in line.split(' ') if x != '']
                 if line_elements and line_elements[1] != 'DUMM':
-                    residues[key]['atoms'][line_elements[1]] = {'type': line_elements[2], 'charge': line_elements[10]}
+                    residues[key]['atoms'][line_elements[1]] = {'type': line_elements[2], 'charge': float(line_elements[10])}
+                    for atom in range(0, len(data)):
+                        # fill the properties for common atoms
+                        if data['Atom'][atom] == residues[key]['atoms'][line_elements[1]]['type']:
+                            residues[key]['atoms'][line_elements[1]]['Radius'] = float(data['Radius'][atom])
+                            residues[key]['atoms'][line_elements[1]]['Edep'] = float(data['Edep'][atom])
+                            residues[key]['atoms'][line_elements[1]]['A'] = float(data['A'][atom])
+                            residues[key]['atoms'][line_elements[1]]['B'] = float(data['B'][atom])
+                            residues[key]['atoms'][line_elements[1]]['Mass'] = float(data['Mass'][atom])
+                        # fill the properties for atoms that are not normal
+                        # we have undefined atom type CZ - for sp hybridisation C
+                        # and some fuck with 'LP' - I don't know what is that
+                        elif residues[key]['atoms'][line_elements[1]]['type'][0] == 'C' and residues[key]['atoms'][line_elements[1]]['type'] != 'CZ':
+                            C_index = list(data['Atom']).index('C*')
+                            residues[key]['atoms'][line_elements[1]]['Radius'] = float(data['Radius'][C_index])
+                            residues[key]['atoms'][line_elements[1]]['Edep'] = float(data['Edep'][C_index])
+                            residues[key]['atoms'][line_elements[1]]['A'] = float(data['A'][C_index])
+                            residues[key]['atoms'][line_elements[1]]['B'] = float(data['B'][C_index])
+                            residues[key]['atoms'][line_elements[1]]['Mass'] = float(data['Mass'][C_index])
+                        elif residues[key]['atoms'][line_elements[1]]['type'][0] == 'N':
+                            N_index = list(data['Atom']).index('N')
+                            residues[key]['atoms'][line_elements[1]]['Radius'] = float(data['Radius'][N_index])
+                            residues[key]['atoms'][line_elements[1]]['Edep'] = float(data['Edep'][N_index])
+                            residues[key]['atoms'][line_elements[1]]['A'] = float(data['A'][N_index])
+                            residues[key]['atoms'][line_elements[1]]['B'] = float(data['B'][N_index])
+                            residues[key]['atoms'][line_elements[1]]['Mass'] = float(data['Mass'][N_index])
+                        elif residues[key]['atoms'][line_elements[1]]['type'] == 'HW':
+                            H_index = list(data['Atom']).index('HO')
+                            residues[key]['atoms'][line_elements[1]]['Radius'] = float(data['Radius'][H_index])
+                            residues[key]['atoms'][line_elements[1]]['Edep'] = float(data['Edep'][H_index])
+                            residues[key]['atoms'][line_elements[1]]['A'] = float(data['A'][H_index])
+                            residues[key]['atoms'][line_elements[1]]['B'] = float(data['B'][H_index])
+                            residues[key]['atoms'][line_elements[1]]['Mass'] = float(data['Mass'][H_index])
+
+
             else:
                 break
+
     pprint(residues)
 
-    return elements
+    return residues
 
 
 def calculate_potential(atoms: list, atoms_desc: DataFrame) -> float:

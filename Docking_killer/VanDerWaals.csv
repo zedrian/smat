@@ -1,39 +1,39 @@
-Atom;Radius;Edep;A;B;Mass;Charge;Desc
-H;0,6;0,0157;0;0;1,008;0,161;H bonded to nitrogen atoms
-HO;0;0;0;0;1,008;0,135;hydroxyl group
-HS;0,6;0,0157;0;0;1,008;0,135;hydrogen bonded to sulphur (pol?)
-HC;1,487;0,0157;0;0;1,008;0,135;H aliph, bond, to C without electrwd,group
-H1;1,387;0,0157;0;0;1,008;0,135;H aliph, bond, to C with 1 electrwd, group
-H2;1,287;0,0157;0;0;1,008;0,135;H aliph, bond, to C with 2 electrwd, group
-H3;1,187;0,0157;0;0;1,008;0,135;H aliph, bond, to C with 3 electrwd, group
-HP;01,ﭢ;0,0157;0;0;1,008;0,135;H bonded to C next to positively charged gr
-HA;1,459;0,015;0;0;1,008;0,167;H arom, bond, to C without elctrwd, Groups
-H4;1,409;0,015;0;0;1,008;0,167;H arom, bond, to C with 1 electrwd, group
-H5;1,359;0,015;0;0;1,008;0,167;H arom,at C with 2 elctrwd, gr,+HCOO group
-HZ;1,459;0,015;0;0;1,008;0,161;H bond sp C (Howard et al,JCC,16,243,1995)
-O;ﭢ,12;0,21;380000;565;16;0,434;carbonyl group oxygen
-O2;ﭢ,12;0,21;380000;565;16;0,434;carboxyl and phosphate group oxygen
-OW;ﭢ,83;0,152;Nan;Nan;16;0;oxygen in TIP3P water
-OH;1,721;0,2104;476600;569,3;16;0,465;oxygen in hydroxyl group
-OS;ﭢ,37;0,17;361380;495,7;16;0,465;ether and ester oxygen
-OP;ﭢ,85;0,17;Nan;Nan;16;0,465;2- phosphate oxygen
-C*;1,908;0,086;4485400;1613;12,ﭢ;0,36;sp2 arom, 5 memb,ring w/1 subst, (TRP)
-CI;1,908;0,1094;Nan;Nan;12,ﭢ;Nan;parmbsc0
-C5;1,908;0,086;Nan;Nan;12,ﭢ;0,36;sp2 C 5 memb,ring in purines (A)
-C4;1,908;0,086;3366,8;25,ᥭ;12,ﭢ;0,36;sp2 C pyrimidines in pos, 5 & 6 (C)
-CT;1,908;0,1094;1813150;602,2;12,ﭢ;0,878;sp3 aliphatic C
-CX;1,908;0,1094;4485400;1613;12,ﭢ;0,36;protein C-alpha (new to ff10)
-C;1,908;0,086;3248100;1168;12,ﭢ;0,616;sp2 C carbonyl group 
-N;1,824;0,17;944300;801,3;14,ﭢ;0,53;sp2 nitrogen in amide groups
-N3;1,824;0,17;944300;801,3;14,ﭢ;0,53;sp3 N for charged amino groups (Lys, etc)
-S;2;0,25;4006300;2001,6;32,06;02,ᥭ;S in disulfide linkage,pol:JPC,102,2399,98
-SH;2;0,25;4006300;2001,6;32,06;02,ᥭ;S in cystine
-P;02,ﭢ;0,2;Nan;Nan;30,97;1,538;phosphate,pol:JACS,112,8543,90,K,J,Miller
-MG;0,7926;0,8947;Nan;Nan;24,305;0,12;magnesium
-C0;ﭢ,31;0,459789;Nan;Nan;40,08;Nan;calcium
-Zn;01,ﭢ;0,0125;395000;307,9;65,4;Nan;Zn2+
-F;ﭢ,75;0,061;Nan;Nan;19;0,32;fluorine (not fluoride!)
-Cl;1,948;0,265;26000420,3;3500,0511;35,45;ﭢ,91;chlorine (Applequist) (not chloride!)
-Br;2,22;0,32;Nan;Nan;79,9;2,88;bromine (Applequist) (not bromide!)
-I;2,35;0,4;Nan;Nan;126,9;4,69;iodine (Applequist) (not iodide!)
-FE;Nan;Nan;Nan;Nan;55;Nan;Iron
+Atom;Radius;Edep;A;B;Mass;Desc
+H;0,6;0,0157;0;0;1,008;H bonded to nitrogen atoms
+HO;0;0;0;0;1,008;hydroxyl group
+HS;0,6;0,0157;0;0;1,008;hydrogen bonded to sulphur (pol?)
+HC;1,487;0,0157;0;0;1,008;H aliph, bond, to C without electrwd,group
+H1;1,387;0,0157;0;0;1,008;H aliph, bond, to C with 1 electrwd, group
+H2;1,287;0,0157;0;0;1,008;H aliph, bond, to C with 2 electrwd, group
+H3;1,187;0,0157;0;0;1,008;H aliph, bond, to C with 3 electrwd, group
+HP;1,1;0,0157;0;0;1,008;H bonded to C next to positively charged gr
+HA;1,459;0,015;0;0;1,008;H arom, bond, to C without elctrwd, Groups
+H4;1,409;0,015;0;0;1,008;H arom, bond, to C with 1 electrwd, group
+H5;1,359;0,015;0;0;1,008;H arom,at C with 2 elctrwd, gr,+HCOO group
+HZ;1,459;0,015;0;0;1,008;H bond sp C (Howard et al,JCC,16,243,1995)
+O;1,6612;0,21;380000;565;16;carbonyl group oxygen
+O2;1,6612;0,21;380000;565;16;carboxyl and phosphate group oxygen
+OW;1,7683;0,152;Nan;Nan;16;oxygen in TIP3P water
+OH;1,721;0,2104;476600;569,3;16;oxygen in hydroxyl group
+OS;1,6837;0,17;361380;495,7;16;ether and ester oxygen
+OP;1,85;0,17;Nan;Nan;16;2- phosphate oxygen
+C*;1,908;0,086;4485400;1613;12,01;sp2 arom, 5 memb,ring w/1 subst, (TRP)
+CI;1,908;0,1094;Nan;Nan;12,01;parmbsc0
+C5;1,908;0,086;Nan;Nan;12,01;sp2 C 5 memb,ring in purines (A)
+C4;1,908;0,086;3366,8;25,9;12,01;sp2 C pyrimidines in pos, 5 & 6 (C)
+CT;1,908;0,1094;1813150;602,2;12,01;sp3 aliphatic C
+CX;1,908;0,1094;4485400;1613;12,01;protein C-alpha (new to ff10)
+C;1,908;0,086;3248100;1168;12,01;sp2 C carbonyl group 
+N;1,824;0,17;944300;801,3;14,01;sp2 nitrogen in amide groups
+N3;1,824;0,17;944300;801,3;14,01;sp3 N for charged amino groups (Lys, etc)
+S;2;0,25;4006300;2001,6;32,06;S in disulfide linkage,pol:JPC,102,2399,98
+SH;2;0,25;4006300;2001,6;32,06;S in cystine
+P;2,1;0,2;Nan;Nan;30,97;phosphate,pol:JACS,112,8543,90,K,J,Miller
+MG;0,7926;0,8947;Nan;Nan;24,305;magnesium
+C0;1,7131;0,459789;Nan;Nan;40,08;calcium
+Zn;1,1;0,0125;395000;307,9;65,4;Zn2+
+F;1,75;0,061;Nan;Nan;19;fluorine (not fluoride!)
+Cl;1,948;0,265;26000420,3;3500,0511;35,45;chlorine (Applequist) (not chloride!)
+Br;2,22;0,32;Nan;Nan;79,9;bromine (Applequist) (not bromide!)
+I;2,35;0,4;Nan;Nan;126,9;iodine (Applequist) (not iodide!)
+FE;Nan;Nan;Nan;Nan;55;Iron
