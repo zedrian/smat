@@ -4,6 +4,7 @@ from Bio import pairwise2
 from Bio.PDB import *
 from Bio.PDB import Residue
 from Bio.PDB import NeighborSearch
+from Bio.PDB.Atom import Atom
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Structure import Structure
 from Bio.SubsMat.MatrixInfo import blosum62
@@ -20,12 +21,17 @@ aa_residue_letters = ['A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K'
                       'V']
 aa_residues = dict()
 
-van_der_waals_radiuses = {'H': 0.6000, 'HO': 0.0000, 'HS': 0.6000, 'HC': 1.4870, 'H1': 1.3870, 'H2': 1.2870, 'H3': 1.1870,
-                          'HP': 1.1000, 'HA': 1.4590, 'H4': 1.4090, 'H5': 1.3590, 'HW': 0.0000, 'HZ': 1.4590, 'O': 1.6612,
-                          'O2': 1.6612, 'OW': 1.7683, 'OH': 1.7210, 'OS': 1.6837, 'OP': 1.8500, 'C*': 1.9080, 'CI': 1.9080,
-                          'C5': 1.9080, 'C4': 1.9080, 'CT': 1.9080, 'CX': 1.9080, 'C': 1.9080, 'N': 1.8240, 'N3': 1.8240,
-                          'S': 2.0000, 'SH': 2.0000, 'P': 2.1000, 'MG': 0.7926, 'C0': 1.7131, 'Zn': 1.10, 'F': 1.75, 'Cl': 1.948,
-                          'Br': 2.22, 'I': 2.35, 'EP': 0.00}
+van_der_waals_radiuses = {'Br': 2.22, 'C': 1.908, 'C*': 1.908, 'CA': 1.908, 'CB': 1.908, 'CC': 1.908, 'CD': 1.908,
+                          'CI': 1.908, 'CK': 1.908, 'CP': 1.908, 'CM': 1.908, 'CS': 1.908, 'CN': 1.908, 'CQ': 1.908,
+                          'CR': 1.908, 'CV': 1.908, 'CW': 1.908, 'CY': 1.908, 'C0': 1.7131, 'CZ': 1.908, 'C5': 1.908,
+                          'C4': 1.908, 'CT': 1.908, 'CX': 1.908, 'Cl': 1.948, 'EP': 0.0, 'F': 1.75, 'I': 2.35, 'H': 0.6,
+                          'HO': 0.0, 'HS': 0.6, 'HC': 1.487, 'H1': 1.387, 'H2': 1.287, 'H3': 1.187, 'HP': 1.1,
+                          'HA': 1.459, 'H4': 1.409, 'H5': 1.359, 'HW': 0.0, 'HZ': 1.459,'MG': 0.7926, 'N': 1.824,
+                          'N3': 1.84, 'O': 1.6612, 'O2': 1.6612, 'OD': 1.6612, 'OW': 1.7683, 'OH': 1.721, 'OS': 1.6837,
+                          'OP': 1.85, 'P': 2.1, 'S': 2.0, 'SH': 2.0,  'Zn': 1.1,
+                          # next ones are untrusted:
+                          'CE': 1.908, 'CG': 1.908, 'NE': 1.824, 'NH': 1.824, 'OE': 1.6612, 'OG': 1.6612, 'SD': 2.0,
+                          'SG': 2.0, 'OXT': 1.7683}
 
 
 class BoundingBox:
@@ -211,31 +217,67 @@ def get_bounding_box(atoms: list) -> BoundingBox:
 
 
 def get_van_der_walls_radius(atom: Atom) -> float:
-    if atom.get_id() in van_der_waals_radiuses:
+    id = atom.get_id()
+
+    if id not in van_der_waals_radiuses:
+        if len(id) > 2:
+            id = id[0:2]
+
+    if id not in van_der_waals_radiuses:
         print(f'attempt to get van der Waals radius for unexpected atom: {atom.get_id()}')
         exit(1)
-    return van_der_waals_radiuses[atom.get_id()]
+    return van_der_waals_radiuses[id]
 
 
 def point_belongs_to_active_site(point: list, atoms: list, center: list) -> bool:
+    def get_length(v: list) -> float:
+        return sqrt(v[0]**2 + v[1]**2 + v[2]**2)
+
+    def get_direction(start: list, end: list) -> list:
+        delta = numpy.subtract(end, start)
+        length = get_length(delta)
+        return [delta[0] / length, delta[1] / length, delta[2] / length]
+
     def ray_intersects_sphere(ray_start: list, ray_end: list, sphere_center: list, sphere_radius: float) -> bool:
-        return False
+        ray_length = get_length(numpy.subtract(ray_start, ray_end))
+
+        # find sphere center projection on ray
+        ray_direction = get_direction(ray_start, ray_end)
+        time = numpy.dot(numpy.subtract(sphere_center, ray_start), ray_direction)
+        sphere_center_projection = numpy.add(ray_start, [ray_direction[0]*time, ray_direction[1]*time,
+                                                         ray_direction[2]*time])
+
+        # measure distance from ray to sphere center:
+        # - if greater than radius, return False
+        sphere_center_to_ray_distance = get_length(numpy.subtract(sphere_center_projection, sphere_center))
+        if sphere_center_to_ray_distance > sphere_radius:
+            return False
+
+        # check projection time:
+        # - if between start and end, return True
+        # - otherwise measure distance to start and end points
+        if 0 < time < ray_length:
+            return True
+        if time < 0:
+            return get_length(numpy.subtract(sphere_center, ray_start)) < sphere_radius
+        return get_length(numpy.subtract(sphere_center, ray_end)) < sphere_radius
 
     max_distance_from_center = 20.0
-    
+
     # is point too far from center?
-    distance = sqrt((point[0] - center[0])**2 +
-                    (point[1] - center[1])**2 +
-                    (point[2] - center[2])**2)
+    distance = get_length(numpy.subtract(point, center))
     if distance > max_distance_from_center:
+        print('too far')
         return False
 
     # check whether center-to-point ray intersects any van der Waals radius of atoms
     for atom in atoms:
         radius = get_van_der_walls_radius(atom)
         if ray_intersects_sphere(center, point, atom.coord, radius):
+            print('intersects')
             return False
 
+    print('don\'t intersects')
     return True
 
 
