@@ -20,6 +20,13 @@ aa_residue_letters = ['A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K'
                       'V']
 aa_residues = dict()
 
+van_der_waals_radiuses = {'H': 0.6000, 'HO': 0.0000, 'HS': 0.6000, 'HC': 1.4870, 'H1': 1.3870, 'H2': 1.2870, 'H3': 1.1870,
+                          'HP': 1.1000, 'HA': 1.4590, 'H4': 1.4090, 'H5': 1.3590, 'HW': 0.0000, 'HZ': 1.4590, 'O': 1.6612,
+                          'O2': 1.6612, 'OW': 1.7683, 'OH': 1.7210, 'OS': 1.6837, 'OP': 1.8500, 'C*': 1.9080, 'CI': 1.9080,
+                          'C5': 1.9080, 'C4': 1.9080, 'CT': 1.9080, 'CX': 1.9080, 'C': 1.9080, 'N': 1.8240, 'N3': 1.8240,
+                          'S': 2.0000, 'SH': 2.0000, 'P': 2.1000, 'MG': 0.7926, 'C0': 1.7131, 'Zn': 1.10, 'F': 1.75, 'Cl': 1.948,
+                          'Br': 2.22, 'I': 2.35, 'EP': 0.00}
+
 
 class BoundingBox:
     def __init__(self):
@@ -203,11 +210,31 @@ def get_bounding_box(atoms: list) -> BoundingBox:
     return box
 
 
+def get_van_der_walls_radius(atom: Atom) -> float:
+    if atom.get_id() in van_der_waals_radiuses:
+        print(f'attempt to get van der Waals radius for unexpected atom: {atom.get_id()}')
+        exit(1)
+    return van_der_waals_radiuses[atom.get_id()]
+
+
 def point_belongs_to_active_site(point: list, atoms: list, center: list) -> bool:
-    # for atom in atoms:
-    #     radius = get_van_der_waals_radius(atom)
-    #     if ray_intersects_sphere(center, point, atom.coord, radius):
-    #         return False
+    def ray_intersects_sphere(ray_start: list, ray_end: list, sphere_center: list, sphere_radius: float) -> bool:
+        return False
+
+    max_distance_from_center = 20.0
+    
+    # is point too far from center?
+    distance = sqrt((point[0] - center[0])**2 +
+                    (point[1] - center[1])**2 +
+                    (point[2] - center[2])**2)
+    if distance > max_distance_from_center:
+        return False
+
+    # check whether center-to-point ray intersects any van der Waals radius of atoms
+    for atom in atoms:
+        radius = get_van_der_walls_radius(atom)
+        if ray_intersects_sphere(center, point, atom.coord, radius):
+            return False
 
     return True
 
