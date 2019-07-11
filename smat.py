@@ -44,6 +44,55 @@ class BoundingBox:
         return f'[{self.min_x}..{self.max_x}] [{self.min_y}..{self.max_y}] [{self.min_z}..{self.max_z}]'
 
 
+class ResidueDesc:
+    def __init__(self, long_name: str, short_name: str, atoms=list()):
+        self.long_name = long_name
+        self.short_name = short_name
+        self.atoms = atoms
+
+    def get_long_name(self):
+        return self.long_name
+
+    def get_short_name(self):
+        return self.short_name
+
+    def get_atoms(self):
+        return self.atoms
+
+
+class AtomDesc:
+    def __init__(self, type: str = '', charge = float(), edep: float, A: float, B: float, mass: float, parent: ResidueDesc):
+        self.type = type
+        self.charge = charge
+        self.edep = edep
+        self.A = A
+        self.B = B
+        self.mass = mass
+        self.parent = parent
+
+    def get_type(self):
+        return self.type
+
+    def get_charge(self):
+        return self.charge
+
+    def get_edep(self):
+        return self.edep
+
+    def get_A(self):
+        return self.A
+
+    def get_B(self):
+        return self.B
+
+    def get_mass(self):
+        return self.mass
+
+    def get_parent(self):
+        return self.parent
+
+
+
 def get_chain(structure: Structure) -> Chain:
     chains = [c for c in structure.get_chains()]
 
@@ -263,53 +312,41 @@ def get_atoms_description() ->dict:
 
     # construct the final dict with proper data
     # parsing the dictionary with lines
-    residues = dict()
+    residues = list()
     for key in list(elements.keys())[:-1]:
-        residues[key] = dict()
-        residues[key]['long_name'] = elements[key][0]
-        residues[key]['short_name'] = elements[key][2].split(' ')[1]
-        residues[key]['atoms'] = dict()
+        res_desc = ResidueDesc(long_name=elements[key][0], short_name=elements[key][2].split(' ')[1])
         for line in elements[key][5:]:
             if line != '':
                 line_elements = [x for x in line.split(' ') if x != '']
                 if line_elements and line_elements[1] != 'DUMM':
-                    residues[key]['atoms'][line_elements[1]] = {'type': line_elements[2], 'charge': float(line_elements[10])}
+                    atom_type = ''
+                    atom_desc = AtomDesc(type=line_elements[2], charge=float(line_elements[10]))
                     for atom in range(0, len(data)):
                         # fill the properties for common atoms
-                        if data['Atom'][atom] == residues[key]['atoms'][line_elements[1]]['type']:
-                            residues[key]['atoms'][line_elements[1]]['Radius'] = float(data['Radius'][atom])
-                            residues[key]['atoms'][line_elements[1]]['Edep'] = float(data['Edep'][atom])
-                            residues[key]['atoms'][line_elements[1]]['A'] = float(data['A'][atom])
-                            residues[key]['atoms'][line_elements[1]]['B'] = float(data['B'][atom])
-                            residues[key]['atoms'][line_elements[1]]['Mass'] = float(data['Mass'][atom])
-                        # fill the properties for atoms that are not normal
-                        # we have undefined atom type CZ - for sp hybridisation C
-                        # and some fuck with 'LP' - I don't know what is that
-                        elif residues[key]['atoms'][line_elements[1]]['type'][0] == 'C' and residues[key]['atoms'][line_elements[1]]['type'] != 'CZ':
-                            C_index = list(data['Atom']).index('C*')
-                            residues[key]['atoms'][line_elements[1]]['Radius'] = float(data['Radius'][C_index])
-                            residues[key]['atoms'][line_elements[1]]['Edep'] = float(data['Edep'][C_index])
-                            residues[key]['atoms'][line_elements[1]]['A'] = float(data['A'][C_index])
-                            residues[key]['atoms'][line_elements[1]]['B'] = float(data['B'][C_index])
-                            residues[key]['atoms'][line_elements[1]]['Mass'] = float(data['Mass'][C_index])
-                        elif residues[key]['atoms'][line_elements[1]]['type'][0] == 'N':
-                            N_index = list(data['Atom']).index('N')
-                            residues[key]['atoms'][line_elements[1]]['Radius'] = float(data['Radius'][N_index])
-                            residues[key]['atoms'][line_elements[1]]['Edep'] = float(data['Edep'][N_index])
-                            residues[key]['atoms'][line_elements[1]]['A'] = float(data['A'][N_index])
-                            residues[key]['atoms'][line_elements[1]]['B'] = float(data['B'][N_index])
-                            residues[key]['atoms'][line_elements[1]]['Mass'] = float(data['Mass'][N_index])
-                        elif residues[key]['atoms'][line_elements[1]]['type'] == 'HW':
-                            H_index = list(data['Atom']).index('HO')
-                            residues[key]['atoms'][line_elements[1]]['Radius'] = float(data['Radius'][H_index])
-                            residues[key]['atoms'][line_elements[1]]['Edep'] = float(data['Edep'][H_index])
-                            residues[key]['atoms'][line_elements[1]]['A'] = float(data['A'][H_index])
-                            residues[key]['atoms'][line_elements[1]]['B'] = float(data['B'][H_index])
-                            residues[key]['atoms'][line_elements[1]]['Mass'] = float(data['Mass'][H_index])
+                        if data['Atom'][atom] == atom_desc.get_type():
+                            atom_type = data['Atom'][atom]
+                        elif atom_desc.get_type()[0] == 'C' and atom_desc.get_type() != 'CZ':
+                            atom_type = list(data['Atom']).index('C*')
+                        elif atom_desc.get_type()[0] == 'N':
+                            atom_type = list(data['Atom']).index('N')
+                        elif atom_desc.get_type() == 'HW':
+                            atom_type = list(data['Atom']).index('HO')
 
+                        # todo rewrite this for atomdesc class
+                    atom_desc = AtomDesc(radius=float(data['Radius'][atom_type]), edep=float(data['Edep'][atom_type]),
+                                         A=float(data['A'][atom_type]), B=float(data['B'][atom_type]),
+                                         mass=float(data['Mass'][atom_type]))
+
+                    # fill the properties for atoms that are not normal
+                    # we have undefined atom type CZ - for sp hybridisation C
+                    # and some fuck with 'LP' - I don't know what is that
+
+                    res_desc.atoms.append(atom_desc)
 
             else:
                 break
+
+        residues.append(res_desc)
 
     pprint(residues)
 
