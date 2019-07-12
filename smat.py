@@ -353,7 +353,7 @@ def get_atoms_description() ->dict:
                         continue
 
                     # create AtomDesc object for all atoms in residue
-                    atom_desc = AtomDesc(type=line_elements[2])
+                    atom_desc = AtomDesc(type=line_elements[2], parent=res_desc)
 
                     # fill the charges
                     if len(separate_charges) == 0:
