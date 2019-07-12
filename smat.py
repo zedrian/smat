@@ -45,10 +45,16 @@ class BoundingBox:
 
 
 class ResidueDesc:
+    # todo build the write function
     def __init__(self, long_name: str, short_name: str, atoms=list()):
         self.long_name = long_name
         self.short_name = short_name
         self.atoms = atoms
+
+    def __str__(self):
+        return f'Residue name: {self.long_name}\n' + \
+            f'Residue short name: {self.short_name}' + \
+            f'Residue atoms: {[x.get_type() for x in self.atoms]}'
 
     def get_long_name(self):
         return self.long_name
@@ -61,7 +67,8 @@ class ResidueDesc:
 
 
 class AtomDesc:
-    def __init__(self, type: str = '', charge = float(), edep: float, A: float, B: float, mass: float, parent: ResidueDesc):
+    # todo build the write function
+    def __init__(self, type: str = '', charge = float(), edep = float(), A = float(), B = float(), mass = float(), parent = ResidueDesc):
         self.type = type
         self.charge = charge
         self.edep = edep
@@ -69,6 +76,15 @@ class AtomDesc:
         self.B = B
         self.mass = mass
         self.parent = parent
+
+    def __str__(self):
+        return f'Atom type: {self.type}\n' + \
+            f'Atom charge: {self.charge}\n' + \
+            f'Atom edep: {self.edep}\n' + \
+            f'Atom Van der Waals 12-part (A): {self.A}\n' + \
+            f'Atom Van der Waals 6-part (B): {self.B}\n' + \
+            f'Atom mass: {self.mass}\n' + \
+            f'Atom parent: {self.parent.get_long_name()}'
 
     def get_type(self):
         return self.type
@@ -314,17 +330,57 @@ def get_atoms_description() ->dict:
     # parsing the dictionary with lines
     residues = list()
     for key in list(elements.keys())[:-1]:
+
+        # find molecules with separated charges notes
+        separate_charges = list() # if we have such - they will store here
+        for line in elements[list(elements.keys())[key]]:
+            if line.rstrip().split(' ')[0] == 'CHARGE':
+
+                # get these fucking charges as array of strings
+                index = elements[list(elements.keys())[key]].index(line) + 1
+                while line != '':
+                    line = elements[list(elements.keys())[key]][index]
+                    separate_charges = separate_charges + [x for x in line.rstrip().split(' ') if x != '']
+                    index += 1
+
+        # create ResidueDesc object and fill the variables
         res_desc = ResidueDesc(long_name=elements[key][0], short_name=elements[key][2].split(' ')[1])
-        for line in elements[key][5:]:
-            if line != '':
-                line_elements = [x for x in line.split(' ') if x != '']
+        for line in range(5, len(elements[key])):
+            if elements[key][line] != '':
+                line_elements = [x for x in elements[key][line].split(' ') if x != '']
+                # filter the dummy atoms
                 if line_elements and line_elements[1] != 'DUMM':
+
+                    # filter the lone pairs
+                    if line_elements[2] == 'LP':
+                        continue
+
+                    # create AtomDesc object for all atoms in residue
+                    atom_desc = AtomDesc(type=line_elements[2])
+
+                    # fill the charges
+                    if len(separate_charges) == 0:
+                        atom_desc.charge = float(line_elements[10])
+                    else:
+                        # check if dummy atoms have charges
+                        #calculate the number of atoms
+                        index = 0
+                        for i in range(5, len(elements[key])):
+                            if elements[key][i] != '':
+                                index += 1
+                            else:
+                                break
+
+                        if len(separate_charges) == index: # they have
+                            atom_desc.charge = float(separate_charges[line - 5])
+                        else: # they don't
+                            atom_desc.charge = float(separate_charges[line - 8])
+
                     atom_type = ''
-                    atom_desc = AtomDesc(type=line_elements[2], charge=float(line_elements[10]))
                     for atom in range(0, len(data)):
                         # fill the properties for common atoms
                         if data['Atom'][atom] == atom_desc.get_type():
-                            atom_type = data['Atom'][atom]
+                            atom_type = list(data['Atom']).index(atom_desc.get_type())
                         elif atom_desc.get_type()[0] == 'C' and atom_desc.get_type() != 'CZ':
                             atom_type = list(data['Atom']).index('C*')
                         elif atom_desc.get_type()[0] == 'N':
@@ -332,14 +388,14 @@ def get_atoms_description() ->dict:
                         elif atom_desc.get_type() == 'HW':
                             atom_type = list(data['Atom']).index('HO')
 
-                        # todo rewrite this for atomdesc class
-                    atom_desc = AtomDesc(radius=float(data['Radius'][atom_type]), edep=float(data['Edep'][atom_type]),
-                                         A=float(data['A'][atom_type]), B=float(data['B'][atom_type]),
-                                         mass=float(data['Mass'][atom_type]))
+                    atom_desc.radius = float(data['Radius'][atom_type])
+                    atom_desc.edep = float(data['Edep'][atom_type])
+                    atom_desc.A = float(data['A'][atom_type])
+                    atom_desc.B = float(data['B'][atom_type])
+                    atom_desc.mass = float(data['Mass'][atom_type])
 
                     # fill the properties for atoms that are not normal
-                    # we have undefined atom type CZ - for sp hybridisation C
-                    # and some fuck with 'LP' - I don't know what is that
+                    # we have undefined atom type CZ - for sp hybridisated C
 
                     res_desc.atoms.append(atom_desc)
 
@@ -347,8 +403,10 @@ def get_atoms_description() ->dict:
                 break
 
         residues.append(res_desc)
+        # pprint(res_desc)
 
-    pprint(residues)
+    for residue in residues:
+        pprint(residue)
 
     return residues
 
