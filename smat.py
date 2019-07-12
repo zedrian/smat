@@ -399,12 +399,10 @@ def get_atoms_description() ->dict:
             else:
                 break
 
-        # todo all residues have atoms from HEM - Why?!
-
         residues.append(res_desc)
 
-    # for residue in residues:
-    #     pprint(residue)
+    for residue in residues:
+        pprint(residue)
 
     return residues
 
