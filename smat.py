@@ -45,15 +45,14 @@ class BoundingBox:
 
 
 class ResidueDesc:
-    # todo build the write function
     def __init__(self, long_name: str, short_name: str, atoms=list()):
         self.long_name = long_name
         self.short_name = short_name
         self.atoms = atoms
 
-    def __str__(self):
+    def __repr__(self):
         return f'Residue name: {self.long_name}\n' + \
-            f'Residue short name: {self.short_name}' + \
+            f'Residue short name: {self.short_name}\n' + \
             f'Residue atoms: {[x.get_type() for x in self.atoms]}'
 
     def get_long_name(self):
@@ -67,7 +66,6 @@ class ResidueDesc:
 
 
 class AtomDesc:
-    # todo build the write function
     def __init__(self, type: str = '', charge = float(), edep = float(), A = float(), B = float(), mass = float(), parent = ResidueDesc):
         self.type = type
         self.charge = charge
@@ -77,7 +75,7 @@ class AtomDesc:
         self.mass = mass
         self.parent = parent
 
-    def __str__(self):
+    def __repr__(self):
         return f'Atom type: {self.type}\n' + \
             f'Atom charge: {self.charge}\n' + \
             f'Atom edep: {self.edep}\n' + \
@@ -106,7 +104,6 @@ class AtomDesc:
 
     def get_parent(self):
         return self.parent
-
 
 
 def get_chain(structure: Structure) -> Chain:
@@ -402,11 +399,12 @@ def get_atoms_description() ->dict:
             else:
                 break
 
-        residues.append(res_desc)
-        # pprint(res_desc)
+        # todo all residues have atoms from HEM - Why?!
 
-    for residue in residues:
-        pprint(residue)
+        residues.append(res_desc)
+
+    # for residue in residues:
+    #     pprint(residue)
 
     return residues
 
