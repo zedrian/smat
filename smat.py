@@ -57,29 +57,9 @@ class BoundingBox:
         return f'[{self.min_x}..{self.max_x}] [{self.min_y}..{self.max_y}] [{self.min_z}..{self.max_z}]'
 
 
-class ResidueDesc:
-    def __init__(self, long_name: str, short_name: str, atoms=list()):
-        self.long_name = long_name
-        self.short_name = short_name
-        self.atoms = atoms
-
-    def __repr__(self):
-        return f'Residue name: {self.long_name}\n' + \
-            f'Residue short name: {self.short_name}\n' + \
-            f'Residue atoms: {[x.get_type() for x in self.atoms]}'
-
-    def get_long_name(self):
-        return self.long_name
-
-    def get_short_name(self):
-        return self.short_name
-
-    def get_atoms(self):
-        return self.atoms
-
-
 class AtomDesc:
-    def __init__(self, type: str = '', charge = float(), edep = float(), A = float(), B = float(), mass = float(), parent_name: str = ''):
+    def __init__(self, fullname: str = '', type: str = '', charge = float(), edep = float(), A = float(), B = float(), mass = float(), parent_name: str = ''):
+        self.fullname = fullname
         self.type = type
         self.charge = charge
         self.edep = edep
@@ -89,13 +69,17 @@ class AtomDesc:
         self.parent_name = parent_name
 
     def __repr__(self):
-        return f'Atom type: {self.type}\n' + \
+        return f'Atom full name: {self.fullname}\n' + \
+            f'Atom type: {self.type}\n' + \
             f'Atom charge: {self.charge}\n' + \
             f'Atom edep: {self.edep}\n' + \
             f'Atom Van der Waals 12-part (A): {self.A}\n' + \
             f'Atom Van der Waals 6-part (B): {self.B}\n' + \
             f'Atom mass: {self.mass}\n' + \
             f'Atom parent: {self.parent_name}'
+
+    def get_fullname(self):
+        return self.fullname
 
     def get_type(self):
         return self.type
@@ -117,6 +101,35 @@ class AtomDesc:
 
     def get_parent_name(self):
         return self.parent_name
+
+
+class ResidueDesc:
+    def __init__(self, long_name: str, short_name: str, atoms=list()):
+        self.long_name = long_name
+        self.short_name = short_name
+        self.atoms = atoms
+
+    def __repr__(self):
+        return f'Residue name: {self.long_name}\n' + \
+            f'Residue short name: {self.short_name}\n' + \
+            f'Residue atoms: {[x.get_type() for x in self.atoms]}'
+
+    def get_long_name(self):
+        return self.long_name
+
+    def get_short_name(self):
+        return self.short_name
+
+    def get_atoms(self):
+        return self.atoms
+
+    def get_atom(self, atom_fullname: str) -> AtomDesc:
+        for atom in self.atoms:
+            if atom.get_fullname() == atom_fullname:
+                return atom
+
+        print(f'ERROR: attempt to get atom {atom_fullname} from residue {self.long_name}')
+        return None
 
 
 def get_chain(structure: Structure) -> Chain:
@@ -293,10 +306,11 @@ def get_van_der_walls_radius(atom: Atom) -> float:
     return van_der_waals_radiuses[id]
 
 
-def point_belongs_to_active_site(point: list, atoms: list, center: list) -> bool:
-    def get_length(v: list) -> float:
-        return sqrt(v[0]**2 + v[1]**2 + v[2]**2)
+def get_length(v: list) -> float:
+    return sqrt(v[0]**2 + v[1]**2 + v[2]**2)
 
+
+def point_belongs_to_active_site(point: list, atoms: list, center: list) -> bool:
     def get_direction(start: list, end: list) -> list:
         delta = numpy.subtract(end, start)
         length = get_length(delta)
@@ -422,7 +436,7 @@ def get_atoms_description() ->dict:
                         continue
 
                     # create AtomDesc object for all atoms in residue
-                    atom_desc = AtomDesc(type=line_elements[2], parent_name=res_desc.get_short_name())
+                    atom_desc = AtomDesc(fullname=line_elements[1], type=line_elements[2], parent_name=res_desc.get_short_name())
 
                     # fill the charges
                     if len(separate_charges) == 0:
@@ -473,16 +487,35 @@ def get_atoms_description() ->dict:
     return residues
 
 
-def calculate_potential(atoms: list, atoms_desc: DataFrame) -> float:
+def calculate_potential(point: list, atoms: list, residues: dict) -> (float, float):
     # point is a list of coordinates like [x, y, z]
     # atoms is a list of Atom objects
+    # residues is a dictionary with residue descriptions
 
-    print(atoms[123].get_parent_name())
+    total_coulomb_potential = 0.0
+    total_lennard_jones_energy = 0.0
 
+    for atom in atoms:
+        residue_name = atom.get_parent().get_resname()
+        atom_description = residues[residue_name].get_atom(atom.get_fullname())
 
-    # https://github.com/choderalab/ambermini/blob/master/share/amber/dat/leap/parm/parm10.dat
-    # http://ambermd.org/formats.html#parm.dat
-    pass
+        # calculate Coulomb potential
+        charge = atom_description.get_charge()
+        distance = get_length(numpy.subtract(point, atom.get_coord()))
+        coulomb_potential = charge / distance**2
+        total_coulomb_potential += coulomb_potential
+
+        # check whether we should calculate Lennard-Jones potential
+        sigma = (atom_description.get_radius() + 2.35) / 2  # 2.35 is VdW-radius for Iodine (the greatest possible one)
+        if distance > sigma * 2.5:  # 2.5 sigma is critical distance
+            continue
+
+        epsilon = atom_description.get_edep()
+
+        lennard_jones_energy = 4*epsilon*((sigma / distance)**12 - (sigma / distance)**6)
+        total_lennard_jones_energy += lennard_jones_energy
+
+    return (total_coulomb_potential, total_lennard_jones_energy)
 
 
 if __name__ == '__main__':
