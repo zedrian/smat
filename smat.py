@@ -66,14 +66,14 @@ class ResidueDesc:
 
 
 class AtomDesc:
-    def __init__(self, type: str = '', charge = float(), edep = float(), A = float(), B = float(), mass = float(), parent = ResidueDesc):
+    def __init__(self, type: str = '', charge = float(), edep = float(), A = float(), B = float(), mass = float(), parent_name: str = ''):
         self.type = type
         self.charge = charge
         self.edep = edep
         self.A = A
         self.B = B
         self.mass = mass
-        self.parent = parent
+        self.parent_name = parent_name
 
     def __repr__(self):
         return f'Atom type: {self.type}\n' + \
@@ -82,7 +82,7 @@ class AtomDesc:
             f'Atom Van der Waals 12-part (A): {self.A}\n' + \
             f'Atom Van der Waals 6-part (B): {self.B}\n' + \
             f'Atom mass: {self.mass}\n' + \
-            f'Atom parent: {self.parent.get_long_name()}'
+            f'Atom parent: {self.parent_name}'
 
     def get_type(self):
         return self.type
@@ -102,8 +102,8 @@ class AtomDesc:
     def get_mass(self):
         return self.mass
 
-    def get_parent(self):
-        return self.parent
+    def get_parent_name(self):
+        return self.parent_name
 
 
 def get_chain(structure: Structure) -> Chain:
@@ -325,7 +325,7 @@ def get_atoms_description() ->dict:
 
     # construct the final dict with proper data
     # parsing the dictionary with lines
-    residues = list()
+    residues = dict()
     for key in list(elements.keys())[:-1]:
 
         # find molecules with separated charges notes
@@ -341,7 +341,7 @@ def get_atoms_description() ->dict:
                     index += 1
 
         # create ResidueDesc object and fill the variables
-        res_desc = ResidueDesc(long_name=elements[key][0], short_name=elements[key][2].split(' ')[1])
+        res_desc = ResidueDesc(long_name=elements[key][0], short_name=elements[key][2].split(' ')[1], atoms=list())
         for line in range(5, len(elements[key])):
             if elements[key][line] != '':
                 line_elements = [x for x in elements[key][line].split(' ') if x != '']
@@ -353,7 +353,7 @@ def get_atoms_description() ->dict:
                         continue
 
                     # create AtomDesc object for all atoms in residue
-                    atom_desc = AtomDesc(type=line_elements[2], parent=res_desc)
+                    atom_desc = AtomDesc(type=line_elements[2], parent_name=res_desc.get_short_name())
 
                     # fill the charges
                     if len(separate_charges) == 0:
@@ -399,10 +399,7 @@ def get_atoms_description() ->dict:
             else:
                 break
 
-        residues.append(res_desc)
-
-    for residue in residues:
-        pprint(residue)
+        residues[res_desc.get_short_name()] = res_desc
 
     return residues
 
@@ -411,7 +408,7 @@ def calculate_potential(atoms: list, atoms_desc: DataFrame) -> float:
     # point is a list of coordinates like [x, y, z]
     # atoms is a list of Atom objects
 
-    print(atoms[123].get_parent())
+    print(atoms[123].get_parent_name())
 
 
     # https://github.com/choderalab/ambermini/blob/master/share/amber/dat/leap/parm/parm10.dat
