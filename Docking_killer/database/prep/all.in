@@ -1411,7 +1411,7 @@ IMPROPER
 DONE
 HEM
 
-HEM  INT     0
+ HEM  INT     0
 CORRECT  OMIT DU   BEG
    0.50000
    1   DUMM  DU    M      0   0   0       0.0000      0.0000      0.0000

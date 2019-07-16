@@ -58,9 +58,10 @@ class BoundingBox:
 
 
 class AtomDesc:
-    def __init__(self, fullname: str = '', type: str = '', charge = float(), edep = float(), A = float(), B = float(), mass = float(), parent_name: str = ''):
-        self.fullname = fullname
+    def __init__(self, fullname: str = '', type: str = '', radius = float(), charge = float(), edep = float(), A = float(), B = float(), mass = float(), parent_name: str = ''):
+        self.fullname = fullname.replace(' ', '')
         self.type = type
+        self.rdius = radius
         self.charge = charge
         self.edep = edep
         self.A = A
@@ -71,6 +72,7 @@ class AtomDesc:
     def __repr__(self):
         return f'Atom full name: {self.fullname}\n' + \
             f'Atom type: {self.type}\n' + \
+            f'Atom radius: {self.radius}\n' + \
             f'Atom charge: {self.charge}\n' + \
             f'Atom edep: {self.edep}\n' + \
             f'Atom Van der Waals 12-part (A): {self.A}\n' + \
@@ -83,6 +85,9 @@ class AtomDesc:
 
     def get_type(self):
         return self.type
+
+    def get_radius(self):
+        return self.radius
 
     def get_charge(self):
         return self.charge
@@ -271,6 +276,11 @@ def get_neighbor_atoms(chain: Chain, ligand: Residue) -> list:
         if residue.get_resname() == ligand.get_resname():
             continue
 
+        # do not count atoms from ligands
+        # TODO: refactor
+        if residue.get_resname() not in aa_residue_names and residue.get_resname() not in cofactor_residue_names:
+            continue
+
         for atom in residue.get_atoms():
             chain_atoms.append(atom)
 
@@ -293,24 +303,19 @@ def get_bounding_box(atoms: list) -> BoundingBox:
     return box
 
 
-def get_van_der_walls_radius(atom: Atom) -> float:
-    id = atom.get_id()
+def get_van_der_walls_radius(atom: Atom, residues: dict) -> float:
+    residue_name = atom.get_parent().get_resname()
+    residue = residues[residue_name]
+    atom_description = residue.get_atom(atom.get_name())
 
-    if id not in van_der_waals_radiuses:
-        if len(id) > 2:
-            id = id[0:2]
-
-    if id not in van_der_waals_radiuses:
-        print(f'attempt to get van der Waals radius for unexpected atom: {atom.get_id()}')
-        exit(1)
-    return van_der_waals_radiuses[id]
+    return atom_description.get_radius()
 
 
 def get_length(v: list) -> float:
     return sqrt(v[0]**2 + v[1]**2 + v[2]**2)
 
 
-def point_belongs_to_active_site(point: list, atoms: list, center: list) -> bool:
+def point_belongs_to_active_site(point: list, atoms: list, center: list, residues: dict) -> bool:
     def get_direction(start: list, end: list) -> list:
         delta = numpy.subtract(end, start)
         length = get_length(delta)
@@ -345,21 +350,18 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list) -> bool
     # is point too far from center?
     distance = get_length(numpy.subtract(point, center))
     if distance > max_distance_from_center:
-        print('too far')
         return False
 
     # check whether center-to-point ray intersects any van der Waals radius of atoms
     for atom in atoms:
-        radius = get_van_der_walls_radius(atom)
+        radius = get_van_der_walls_radius(atom, residues)
         if ray_intersects_sphere(center, point, atom.coord, radius):
-            print('intersects')
             return False
 
-    print('don\'t intersects')
     return True
 
 
-def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: BoundingBox, ligand_center_of_mass: list) -> list:
+def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: BoundingBox, ligand_center_of_mass: list, residues: dict) -> list:
     step = 0.2
 
     grid_coordinates = list()
@@ -372,7 +374,7 @@ def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: Bounding
             while z < bounding_box.max_z:
                 # do stuff
                 current_point = [x, y, z]
-                if point_belongs_to_active_site(current_point, neighbour_atoms, ligand_center_of_mass):
+                if point_belongs_to_active_site(current_point, neighbour_atoms, ligand_center_of_mass, residues):
                     grid_coordinates.append(current_point)
 
                 z += step
@@ -515,7 +517,7 @@ def calculate_potential(point: list, atoms: list, residues: dict) -> (float, flo
         lennard_jones_energy = 4*epsilon*((sigma / distance)**12 - (sigma / distance)**6)
         total_lennard_jones_energy += lennard_jones_energy
 
-    return (total_coulomb_potential, total_lennard_jones_energy)
+    return total_coulomb_potential, total_lennard_jones_energy
 
 
 if __name__ == '__main__':
@@ -529,9 +531,22 @@ if __name__ == '__main__':
     ligand = get_ligand(chain)
     neighbour_atoms = get_neighbor_atoms(chain, ligand)
     bounding_box = get_bounding_box(neighbour_atoms)
-    grid_coordinates = get_potential_grid_coordinates(neighbour_atoms, bounding_box, get_center_of_mass(ligand))
-    atoms_desc = get_atoms_description()
-    # calculate_potential(neighbour_atoms, atoms_desc)
+    residues = get_atoms_description()
+    print('residues info constructed')
+    grid_coordinates = get_potential_grid_coordinates(neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues)
+    print('grid coordinates calculated')
+
+    active_site_points = list()
+    for point in grid_coordinates:
+        coulomb_potential, lennard_jones_energy = calculate_potential(point, neighbour_atoms, residues)
+        active_site_points.append({'coordinates': point, 'coulomb': coulomb_potential, 'lennard_jones': lennard_jones_energy})
+    print('potentials calculated')
+
+    with open('active-site.csv', 'w') as file:
+        file.write('x,y,z,coulomb,lennard-jones\n')
+        for point in active_site_points:
+            file.write(f'{point["coordinates"][0]},{point["coordinates"][1]},{point["coordinates"][2]},{point["coulomb"]},{point["lennard_jones"]}\n')
+    print('file saved')
 
 
     class NeighbourSelect(Select):
