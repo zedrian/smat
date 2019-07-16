@@ -321,7 +321,7 @@ def get_atoms_description() ->dict:
                 break
 
     # get some data from csv table
-    data = read_csv('Docking_killer/VanDerWaals_2.csv', header=0, delimiter=';')
+    data = read_csv('Docking_killer/VanDerWaals.csv', header=0, delimiter=';')
 
     # construct the final dict with proper data
     # parsing the dictionary with lines
