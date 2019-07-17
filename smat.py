@@ -1,5 +1,6 @@
 from math import sqrt
 import numpy
+from sys import stdout
 from Bio import pairwise2
 from Bio.PDB import *
 from Bio.PDB import Residue
@@ -12,9 +13,18 @@ from pandas import read_csv, DataFrame
 from pprint import pprint
 
 
-# when computing electrostatic potential:
-# - if target point is inside Van der Vaalse radius of current atom,
-#   skip this atom
+# smart progress bar
+def show_progress(label, width, percentage):
+    progress = '['
+    for i in range(0, width):
+        if i / width < percentage:
+            progress += '#'
+        else:
+            progress += ' '
+    progress += '] {0:.3%}'.format(percentage)
+    print('\r' + label + progress, end='')
+    stdout.flush()
+
 
 aa_residue_names = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS', 'MET', 'PHE',
                     'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
@@ -366,6 +376,12 @@ def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: Bounding
 
     grid_coordinates = list()
 
+    total_point_count = (bounding_box.max_x - bounding_box.min_x)//step * \
+                        (bounding_box.max_y - bounding_box.min_y)//step * \
+                        (bounding_box.max_z - bounding_box.min_z)//step
+
+    point_index = 0
+    show_progress('potential grid calculation: ', 80, float(point_index)/float(total_point_count))
     x = bounding_box.min_x
     while x < bounding_box.max_x:
         y = bounding_box.min_y
@@ -377,12 +393,16 @@ def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: Bounding
                 if point_belongs_to_active_site(current_point, neighbour_atoms, ligand_center_of_mass, residues):
                     grid_coordinates.append(current_point)
 
+                point_index += 1
+                show_progress('potential grid calculation: ', 80, float(point_index) / float(total_point_count))
+
                 z += step
 
             y += step
 
         x += step
 
+    show_progress('potential grid calculation: ', 80, 1.0)
     return grid_coordinates
 
 
@@ -497,9 +517,12 @@ def calculate_potential(point: list, atoms: list, residues: dict) -> (float, flo
     total_coulomb_potential = 0.0
     total_lennard_jones_energy = 0.0
 
+    atom_index = 0
+    total_atom_count = len(atoms)
+    show_progress('potential grid calculation: ', 80, float(atom_index) / float(total_atom_count))
     for atom in atoms:
         residue_name = atom.get_parent().get_resname()
-        atom_description = residues[residue_name].get_atom(atom.get_fullname())
+        atom_description = residues[residue_name].get_atom(atom.get_name())
 
         # calculate Coulomb potential
         charge = atom_description.get_charge()
@@ -517,6 +540,10 @@ def calculate_potential(point: list, atoms: list, residues: dict) -> (float, flo
         lennard_jones_energy = 4*epsilon*((sigma / distance)**12 - (sigma / distance)**6)
         total_lennard_jones_energy += lennard_jones_energy
 
+        atom_index += 1
+        show_progress('potential grid calculation: ', 80, float(atom_index) / float(total_atom_count))
+
+    show_progress('potential grid calculation: ', 80, 1.0)
     return total_coulomb_potential, total_lennard_jones_energy
 
 
