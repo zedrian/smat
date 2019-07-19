@@ -26,24 +26,13 @@ def show_progress(label, width, percentage):
     stdout.flush()
 
 
+# todo take this data from constructed database
 aa_residue_names = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS', 'MET', 'PHE',
                     'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
 cofactor_residue_names = ['GDP', 'GTP', 'ADP', 'ATP', 'FMN', 'FAD', 'NAD', 'HEM']
 aa_residue_letters = ['A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y',
                       'V']
 aa_residues = dict()
-
-van_der_waals_radiuses = {'Br': 2.22, 'C': 1.908, 'C*': 1.908, 'CA': 1.908, 'CB': 1.908, 'CC': 1.908, 'CD': 1.908,
-                          'CI': 1.908, 'CK': 1.908, 'CP': 1.908, 'CM': 1.908, 'CS': 1.908, 'CN': 1.908, 'CQ': 1.908,
-                          'CR': 1.908, 'CV': 1.908, 'CW': 1.908, 'CY': 1.908, 'C0': 1.7131, 'CZ': 1.908, 'C5': 1.908,
-                          'C4': 1.908, 'CT': 1.908, 'CX': 1.908, 'Cl': 1.948, 'EP': 0.0, 'F': 1.75, 'I': 2.35, 'H': 0.6,
-                          'HO': 0.0, 'HS': 0.6, 'HC': 1.487, 'H1': 1.387, 'H2': 1.287, 'H3': 1.187, 'HP': 1.1,
-                          'HA': 1.459, 'H4': 1.409, 'H5': 1.359, 'HW': 0.0, 'HZ': 1.459,'MG': 0.7926, 'N': 1.824,
-                          'N3': 1.84, 'O': 1.6612, 'O2': 1.6612, 'OD': 1.6612, 'OW': 1.7683, 'OH': 1.721, 'OS': 1.6837,
-                          'OP': 1.85, 'P': 2.1, 'S': 2.0, 'SH': 2.0,  'Zn': 1.1,
-                          # next ones are untrusted:
-                          'CE': 1.908, 'CG': 1.908, 'NE': 1.824, 'NH': 1.824, 'OE': 1.6612, 'OG': 1.6612, 'SD': 2.0,
-                          'SG': 2.0, 'OXT': 1.7683}
 
 
 class BoundingBox:
@@ -342,7 +331,8 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list, residue
 
         # measure distance from ray to sphere center:
         # - if greater than radius, return False
-        sphere_center_to_ray_distance = get_length(numpy.subtract(sphere_center_projection, sphere_center))
+        sctrd = numpy.subtract(sphere_center_projection, sphere_center)
+        sphere_center_to_ray_distance = get_length(sctrd)
         if sphere_center_to_ray_distance > sphere_radius:
             return False
 
@@ -372,7 +362,7 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list, residue
 
 
 def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: BoundingBox, ligand_center_of_mass: list, residues: dict) -> list:
-    step = 0.2
+    step = 2
 
     grid_coordinates = list()
 
@@ -516,6 +506,7 @@ def calculate_potential(point: list, atoms: list, residues: dict) -> (float, flo
 
     total_coulomb_potential = 0.0
     total_lennard_jones_energy = 0.0
+    distance = 0.0
 
     atom_index = 0
     total_atom_count = len(atoms)
@@ -532,13 +523,12 @@ def calculate_potential(point: list, atoms: list, residues: dict) -> (float, flo
 
         # check whether we should calculate Lennard-Jones potential
         sigma = (atom_description.get_radius() + 2.35) / 2  # 2.35 is VdW-radius for Iodine (the greatest possible one)
-        if distance > sigma * 2.5:  # 2.5 sigma is critical distance
-            continue
+        if distance <= sigma * 2.5:  # 2.5 sigma is critical distance
+            epsilon = atom_description.get_edep()
 
-        epsilon = atom_description.get_edep()
+            lennard_jones_energy = 4 * epsilon * ((sigma / distance) ** 12 - (sigma / distance) ** 6)
+            total_lennard_jones_energy += lennard_jones_energy
 
-        lennard_jones_energy = 4*epsilon*((sigma / distance)**12 - (sigma / distance)**6)
-        total_lennard_jones_energy += lennard_jones_energy
 
         atom_index += 1
         show_progress('potential grid calculation: ', 80, float(atom_index) / float(total_atom_count))
@@ -570,7 +560,7 @@ if __name__ == '__main__':
     print('potentials calculated')
 
     with open('active-site.csv', 'w') as file:
-        file.write('x,y,z,coulomb,lennard-jones\n')
+        file.write('x,y,z,coulomb,lennard-jones,distance\n')
         for point in active_site_points:
             file.write(f'{point["coordinates"][0]},{point["coordinates"][1]},{point["coordinates"][2]},{point["coulomb"]},{point["lennard_jones"]}\n')
     print('file saved')
