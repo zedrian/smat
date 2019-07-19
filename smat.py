@@ -60,7 +60,7 @@ class AtomDesc:
     def __init__(self, fullname: str = '', type: str = '', radius = float(), charge = float(), edep = float(), A = float(), B = float(), mass = float(), parent_name: str = ''):
         self.fullname = fullname.replace(' ', '')
         self.type = type
-        self.rdius = radius
+        self.radius = radius
         self.charge = charge
         self.edep = edep
         self.A = A
@@ -427,6 +427,9 @@ def get_atoms_description() ->dict:
         separate_charges = list() # if we have such - they will store here
         for line in elements[list(elements.keys())[key]]:
             if line.rstrip().split(' ')[0] == 'CHARGE':
+                print('2'*20)
+                print(elements[list(elements.keys())[key]])
+                print('3'*20)
 
                 # get these fucking charges as array of strings
                 index = elements[list(elements.keys())[key]].index(line) + 1
@@ -479,9 +482,9 @@ def get_atoms_description() ->dict:
                             atom_type = list(data['Atom']).index('N')
                         elif atom_desc.get_type() == 'HW':
                             atom_type = list(data['Atom']).index('HO')
+                        elif atom_desc.get_type()[0] == 'O':
+                            atom_type = list(data['Atom']).index('O2')
 
-                    if atom_type == '':
-                        pprint(atom_desc)
                     atom_desc.radius = float(data['Radius'][atom_type])
                     atom_desc.edep = float(data['Edep'][atom_type])
                     atom_desc.A = float(data['A'][atom_type])
