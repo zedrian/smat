@@ -362,7 +362,7 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list, residue
 
 
 def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: BoundingBox, ligand_center_of_mass: list, residues: dict) -> list:
-    step = 2
+    step = 2    # todo it might be changed - check it!
 
     grid_coordinates = list()
 
@@ -480,6 +480,8 @@ def get_atoms_description() ->dict:
                         elif atom_desc.get_type() == 'HW':
                             atom_type = list(data['Atom']).index('HO')
 
+                    if atom_type == '':
+                        pprint(atom_desc)
                     atom_desc.radius = float(data['Radius'][atom_type])
                     atom_desc.edep = float(data['Edep'][atom_type])
                     atom_desc.A = float(data['A'][atom_type])
