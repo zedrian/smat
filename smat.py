@@ -246,10 +246,15 @@ def get_ligand(chain: Chain) -> Residue:
             continue
 
         ligand_center_of_mass = get_center_of_mass(residue)
+        print(ligand_center_of_mass)
+        print(chain_center_of_mass)
 
         # measure distance to chain center of mass
         delta_position = numpy.subtract(ligand_center_of_mass, chain_center_of_mass)
         squared_distance = delta_position[0]**2 + delta_position[1]**2 + delta_position[2]**2
+
+        print(delta_position)
+        print(squared_distance)
 
         # compare with current best result
         if squared_distance < closest_ligand_to_center_of_mass_squared_distance:
@@ -547,7 +552,7 @@ if __name__ == '__main__':
         aa_residues[aa_residue_names[i]] = aa_residue_letters[i]
 
     parser = PDBParser()
-    structure = parser.get_structure('6b82', 'Docking_killer/proteins/CYPs/6b82_referense.pdb')
+    structure = parser.get_structure('6b82', 'Docking_killer/proteins/CYPs/6b82.pdb')
     chain = get_chain(structure)
     ligand = get_ligand(chain)
     ligand_atoms = list(ligand.get_atoms())

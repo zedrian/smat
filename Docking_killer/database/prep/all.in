@@ -2725,6 +2725,5 @@ IMPROPER
 
 DONE
 STOP
-# todo Add more molecules here
 # todo develop parser with charges
 # todo convert OFF to PREP http://research.bmh.manchester.ac.uk/bryce/amber
