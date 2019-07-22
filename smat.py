@@ -393,6 +393,7 @@ def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: Bounding
         x += step
 
     show_progress('potential grid calculation: ', 80, 1.0)
+    pprint(grid_coordinates)
     return grid_coordinates
 
 
@@ -427,9 +428,6 @@ def get_atoms_description() ->dict:
         separate_charges = list() # if we have such - they will store here
         for line in elements[list(elements.keys())[key]]:
             if line.rstrip().split(' ')[0] == 'CHARGE':
-                print('2'*20)
-                print(elements[list(elements.keys())[key]])
-                print('3'*20)
 
                 # get these fucking charges as array of strings
                 index = elements[list(elements.keys())[key]].index(line) + 1
@@ -474,15 +472,15 @@ def get_atoms_description() ->dict:
                     atom_type = ''
                     for atom in range(0, len(data)):
                         # fill the properties for common atoms
-                        if data['Atom'][atom] == atom_desc.get_type():
-                            atom_type = list(data['Atom']).index(atom_desc.get_type())
-                        elif atom_desc.get_type()[0] == 'C' and atom_desc.get_type() != 'CZ':
+                        if data['Atom'][atom] == atom_desc.get_type().upper():
+                            atom_type = list(data['Atom']).index(atom_desc.get_type().upper())
+                        elif atom_desc.get_type().upper()[0] == 'C' and atom_desc.get_type().upper() != 'CZ':
                             atom_type = list(data['Atom']).index('C*')
-                        elif atom_desc.get_type()[0] == 'N':
+                        elif atom_desc.get_type().upper()[0] == 'N':
                             atom_type = list(data['Atom']).index('N')
-                        elif atom_desc.get_type() == 'HW':
+                        elif atom_desc.get_type().upper() == 'HW':
                             atom_type = list(data['Atom']).index('HO')
-                        elif atom_desc.get_type()[0] == 'O':
+                        elif atom_desc.get_type().upper()[0] == 'O':
                             atom_type = list(data['Atom']).index('O2')
 
                     atom_desc.radius = float(data['Radius'][atom_type])
@@ -551,16 +549,19 @@ if __name__ == '__main__':
     structure = parser.get_structure('6b82', 'Docking_killer/proteins/CYPs/6b82_referense.pdb')
     chain = get_chain(structure)
     ligand = get_ligand(chain)
+    ligand_atoms = ligand.get_atoms()
     neighbour_atoms = get_neighbor_atoms(chain, ligand)
     bounding_box = get_bounding_box(neighbour_atoms)
     residues = get_atoms_description()
     print('residues info constructed')
+    for atom in ligand_atoms:
+        neighbour_atoms.append(atom)
     grid_coordinates = get_potential_grid_coordinates(neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues)
     print('grid coordinates calculated')
 
     active_site_points = list()
     for point in grid_coordinates:
-        coulomb_potential, lennard_jones_energy = calculate_potential(point, neighbour_atoms, residues)
+        coulomb_potential, lennard_jones_energy = calculate_potential(point, ligand_atoms, residues)
         active_site_points.append({'coordinates': point, 'coulomb': coulomb_potential, 'lennard_jones': lennard_jones_energy})
     print('potentials calculated')
 
