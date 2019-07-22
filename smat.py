@@ -356,7 +356,7 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list, residue
     # check whether center-to-point ray intersects any van der Waals radius of atoms
     for atom in atoms:
         radius = get_van_der_walls_radius(atom, residues)
-        if get_length(numpy.subtract(point, atom.get_coord())) <= radius:
+        if ray_intersects_sphere(center, point, atom.coord, radius):
             return False
 
     return True
@@ -555,13 +555,16 @@ if __name__ == '__main__':
     bounding_box = get_bounding_box(neighbour_atoms)
     residues = get_atoms_description()
     print('residues info constructed')
-    for atom in ligand_atoms:
-        neighbour_atoms.append(atom)
     grid_coordinates = get_potential_grid_coordinates(neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues)
+    new_grid_coordinates = list()
+    for point in grid_coordinates:
+        for atom in ligand_atoms:
+            if get_length(numpy.subtract(point, atom.get_coord())) > get_van_der_walls_radius(atom, residues):
+                new_grid_coordinates.append(point)
     print('grid coordinates calculated')
 
     active_site_points = list()
-    for point in grid_coordinates:
+    for point in new_grid_coordinates:
         coulomb_potential, lennard_jones_energy = calculate_potential(point, ligand_atoms, residues)
         active_site_points.append({'coordinates': point, 'coulomb': coulomb_potential, 'lennard_jones': lennard_jones_energy})
     print('potentials calculated')
