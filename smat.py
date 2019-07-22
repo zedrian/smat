@@ -315,6 +315,7 @@ def get_length(v: list) -> float:
 
 
 def point_belongs_to_active_site(point: list, atoms: list, center: list, residues: dict) -> bool:
+
     def get_direction(start: list, end: list) -> list:
         delta = numpy.subtract(end, start)
         length = get_length(delta)
@@ -355,14 +356,14 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list, residue
     # check whether center-to-point ray intersects any van der Waals radius of atoms
     for atom in atoms:
         radius = get_van_der_walls_radius(atom, residues)
-        if ray_intersects_sphere(center, point, atom.coord, radius):
+        if get_length(numpy.subtract(point, atom.get_coord())) <= radius:
             return False
 
     return True
 
 
 def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: BoundingBox, ligand_center_of_mass: list, residues: dict) -> list:
-    step = 2    # todo it might be changed - check it!
+    step = 0.5    # todo it might be changed - check it!
 
     grid_coordinates = list()
 
@@ -549,7 +550,7 @@ if __name__ == '__main__':
     structure = parser.get_structure('6b82', 'Docking_killer/proteins/CYPs/6b82_referense.pdb')
     chain = get_chain(structure)
     ligand = get_ligand(chain)
-    ligand_atoms = ligand.get_atoms()
+    ligand_atoms = list(ligand.get_atoms())
     neighbour_atoms = get_neighbor_atoms(chain, ligand)
     bounding_box = get_bounding_box(neighbour_atoms)
     residues = get_atoms_description()
