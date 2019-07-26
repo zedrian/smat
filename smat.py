@@ -246,15 +246,10 @@ def get_ligand(chain: Chain) -> Residue:
             continue
 
         ligand_center_of_mass = get_center_of_mass(residue)
-        print(ligand_center_of_mass)
-        print(chain_center_of_mass)
 
         # measure distance to chain center of mass
         delta_position = numpy.subtract(ligand_center_of_mass, chain_center_of_mass)
         squared_distance = delta_position[0]**2 + delta_position[1]**2 + delta_position[2]**2
-
-        print(delta_position)
-        print(squared_distance)
 
         # compare with current best result
         if squared_distance < closest_ligand_to_center_of_mass_squared_distance:
@@ -368,7 +363,7 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list, residue
 
 
 def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: BoundingBox, ligand_center_of_mass: list, residues: dict) -> list:
-    step = 0.5    # todo it might be changed - check it!
+    step = 2   # todo it might be changed - check it!
 
     grid_coordinates = list()
 
@@ -399,7 +394,6 @@ def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: Bounding
         x += step
 
     show_progress('potential grid calculation: ', 80, 1.0)
-    pprint(grid_coordinates)
     return grid_coordinates
 
 
@@ -515,7 +509,6 @@ def calculate_potential(point: list, atoms: list, residues: dict) -> (float, flo
 
     total_coulomb_potential = 0.0
     total_lennard_jones_energy = 0.0
-    distance = 0.0
 
     atom_index = 0
     total_atom_count = len(atoms)
@@ -537,7 +530,6 @@ def calculate_potential(point: list, atoms: list, residues: dict) -> (float, flo
 
             lennard_jones_energy = 4 * epsilon * ((sigma / distance) ** 12 - (sigma / distance) ** 6)
             total_lennard_jones_energy += lennard_jones_energy
-
 
         atom_index += 1
         show_progress('potential grid calculation: ', 80, float(atom_index) / float(total_atom_count))
@@ -561,24 +553,52 @@ if __name__ == '__main__':
     residues = get_atoms_description()
     print('residues info constructed')
     grid_coordinates = get_potential_grid_coordinates(neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues)
-    new_grid_coordinates = list()
-    for point in grid_coordinates:
-        for atom in ligand_atoms:
-            if get_length(numpy.subtract(point, atom.get_coord())) > get_van_der_walls_radius(atom, residues):
-                new_grid_coordinates.append(point)
+    print(f'grid length: {len(grid_coordinates)}')
+    for atom in ligand_atoms:
+        coords = atom.get_coord()
+        for point in grid_coordinates:
+            if get_length(numpy.subtract(point, coords)) < get_van_der_walls_radius(atom, residues):
+                grid_coordinates.remove(point)
+
+    print(f'count: {len(grid_coordinates)}')
+
+
     print('grid coordinates calculated')
 
     active_site_points = list()
-    for point in new_grid_coordinates:
+    for point in grid_coordinates:
         coulomb_potential, lennard_jones_energy = calculate_potential(point, ligand_atoms, residues)
         active_site_points.append({'coordinates': point, 'coulomb': coulomb_potential, 'lennard_jones': lennard_jones_energy})
     print('potentials calculated')
 
+    coordsx_list = list()
+    coordsy_list = list()
+    coordsz_list = list()
+    columb_list = list()
+    lennard_list = list()
+
+    for point in active_site_points:
+        coordsx_list.append(point['coordinates'][0])
+        coordsy_list.append(point['coordinates'][1])
+        coordsz_list.append(point['coordinates'][2])
+        columb_list.append(point['coulomb'])
+        lennard_list.append(point['lennard_jones'])
+
+    gradient = numpy.gradient(columb_list, numpy.array([coordsx_list, coordsy_list, coordsz_list], dtype=float))
+    print(len(active_site_points))
+    print(len(gradient))
+
     with open('active-site.csv', 'w') as file:
-        file.write('x,y,z,coulomb,lennard-jones,distance\n')
+        file.write('x,y,z,coulomb,lennard_jones\n')
         for point in active_site_points:
             file.write(f'{point["coordinates"][0]},{point["coordinates"][1]},{point["coordinates"][2]},{point["coulomb"]},{point["lennard_jones"]}\n')
-    print('file saved')
+
+    with open('gradient.csv', 'w') as file:
+        file.write('coulomb_gradient\n')
+        for i in gradient:
+            file.write(f'{get_length(i)}')
+        file.close()
+    print('files saved')
 
 
     class NeighbourSelect(Select):
