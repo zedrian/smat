@@ -10,6 +10,7 @@ from Bio.PDB.Chain import Chain
 from Bio.PDB.Structure import Structure
 from Bio.SubsMat.MatrixInfo import blosum62
 from pandas import read_csv, DataFrame
+from scipy import stats
 from pprint import pprint
 
 
@@ -363,7 +364,7 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list, residue
 
 
 def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: BoundingBox, ligand_center_of_mass: list, residues: dict) -> list:
-    step = 2   # todo it might be changed - check it!
+    step = 1.5   # todo it might be changed - check it!
 
     grid_coordinates = list()
 
@@ -538,6 +539,28 @@ def calculate_potential(point: list, atoms: list, residues: dict) -> (float, flo
     return total_coulomb_potential, total_lennard_jones_energy
 
 
+def construct_active_site_in_potentials_form(grid_coordinates: list, atoms: list, residues: dict, inducer: 'str'):
+    active_site_points = list()
+    for point in grid_coordinates:
+        coulomb_potential, lennard_jones_energy = calculate_potential(point, atoms, residues)
+        active_site_points.append(
+            {'coordinates': point, 'coulomb': coulomb_potential, 'lennard_jones': lennard_jones_energy})
+    print(f'{inducer} induced potentials calculated')
+
+    coulomb_list = list()
+    lennard_list = list()
+    with open(f'active-site_{inducer}.csv', 'w') as file:
+        file.write('x,y,z,coulomb,lennard_jones\n')
+        for point in active_site_points:
+            coulomb_list.append(point["coulomb"])
+            lennard_list.append(point["lennard_jones"])
+            file.write(
+                f'{point["coordinates"][0]},{point["coordinates"][1]},{point["coordinates"][2]},{point["coulomb"]},{point["lennard_jones"]}\n')
+        file.close
+
+    return coulomb_list, lennard_list
+
+
 if __name__ == '__main__':
     # prepare AA residues dictionary
     for i in range(len(aa_residue_names)):
@@ -553,52 +576,34 @@ if __name__ == '__main__':
     residues = get_atoms_description()
     print('residues info constructed')
     grid_coordinates = get_potential_grid_coordinates(neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues)
-    print(f'grid length: {len(grid_coordinates)}')
     for atom in ligand_atoms:
         coords = atom.get_coord()
         for point in grid_coordinates:
             if get_length(numpy.subtract(point, coords)) < get_van_der_walls_radius(atom, residues):
                 grid_coordinates.remove(point)
 
-    print(f'count: {len(grid_coordinates)}')
-
-
     print('grid coordinates calculated')
+    print(f'grid length: {len(grid_coordinates)}')
 
-    active_site_points = list()
-    for point in grid_coordinates:
-        coulomb_potential, lennard_jones_energy = calculate_potential(point, ligand_atoms, residues)
-        active_site_points.append({'coordinates': point, 'coulomb': coulomb_potential, 'lennard_jones': lennard_jones_energy})
-    print('potentials calculated')
 
-    coordsx_list = list()
-    coordsy_list = list()
-    coordsz_list = list()
-    columb_list = list()
-    lennard_list = list()
+    protein_coulomb, protein_lennard = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, residues, 'protein')
+    ligand_coulomb, ligand_lennard = construct_active_site_in_potentials_form(grid_coordinates, ligand_atoms, residues, 'ligand')
 
-    for point in active_site_points:
-        coordsx_list.append(point['coordinates'][0])
-        coordsy_list.append(point['coordinates'][1])
-        coordsz_list.append(point['coordinates'][2])
-        columb_list.append(point['coulomb'])
-        lennard_list.append(point['lennard_jones'])
+    coulomb_res = stats.wilcoxon(protein_coulomb, ligand_coulomb, zero_method='wilcox', correction=False)
+    lennard_res = stats.wilcoxon(protein_lennard, ligand_lennard, zero_method='wilcox', correction=False)
+    print(f'Wilcoxon test results for Coulomb potential are: {coulomb_res[0]} with p-value of {coulomb_res[1]}')
+    print(f'Wilcoxon test results for Lennard-Jones potential are: {lennard_res[0]} with p-value of {lennard_res[1]}')
 
-    gradient = numpy.gradient(columb_list, numpy.array([coordsx_list, coordsy_list, coordsz_list], dtype=float))
-    print(len(active_site_points))
-    print(len(gradient))
-
-    with open('active-site.csv', 'w') as file:
-        file.write('x,y,z,coulomb,lennard_jones\n')
-        for point in active_site_points:
-            file.write(f'{point["coordinates"][0]},{point["coordinates"][1]},{point["coordinates"][2]},{point["coulomb"]},{point["lennard_jones"]}\n')
-
-    with open('gradient.csv', 'w') as file:
-        file.write('coulomb_gradient\n')
-        for i in gradient:
-            file.write(f'{get_length(i)}')
-        file.close()
-    print('files saved')
+    # active_site_points = list()
+    # for point in grid_coordinates:
+    #     coulomb_potential, lennard_jones_energy = calculate_potential(point, neighbour_atoms, residues)
+    #     active_site_points.append({'coordinates': point, 'coulomb': coulomb_potential, 'lennard_jones': lennard_jones_energy})
+    # print('protein induced potentials calculated')
+    #
+    # with open('active-site_protein.csv', 'w') as file:
+    #     file.write('x,y,z,coulomb,lennard_jones\n')
+    #     for point in active_site_points:
+    #         file.write(f'{point["coordinates"][0]},{point["coordinates"][1]},{point["coordinates"][2]},{point["coulomb"]},{point["lennard_jones"]}\n')
 
 
     class NeighbourSelect(Select):
