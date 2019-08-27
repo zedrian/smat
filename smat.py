@@ -305,6 +305,9 @@ def get_bounding_box(atoms: list) -> BoundingBox:
 
 def get_van_der_walls_radius(atom: Atom, residues: dict) -> float:
     residue_name = atom.get_parent().get_resname()
+    # correction of His form
+    if residue_name.upper() == 'HIS':
+        residue_name = 'HIE'
     residue = residues[residue_name]
     atom_description = residue.get_atom(atom.get_name())
 
@@ -404,7 +407,7 @@ def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_
     return grid_coordinates
 
 
-def get_atoms_description() ->dict:
+def get_atoms_description()->dict:
     # get atom types description ones for all other functions if needed
     # some aa have 2 variants of protonation
 
