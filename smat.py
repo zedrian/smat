@@ -1,6 +1,6 @@
 from math import sqrt
 import numpy
-from sys import stdout
+from sys import stdout, argv
 from Bio import pairwise2
 from Bio.PDB import *
 from Bio.PDB import Residue
@@ -10,6 +10,7 @@ from Bio.PDB.Chain import Chain
 from Bio.PDB.Structure import Structure
 from Bio.SubsMat.MatrixInfo import blosum62
 from pandas import read_csv, DataFrame
+from scipy import stats
 from pprint import pprint
 
 
@@ -26,24 +27,13 @@ def show_progress(label, width, percentage):
     stdout.flush()
 
 
+# todo take this data from constructed database
 aa_residue_names = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS', 'MET', 'PHE',
                     'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
 cofactor_residue_names = ['GDP', 'GTP', 'ADP', 'ATP', 'FMN', 'FAD', 'NAD', 'HEM']
 aa_residue_letters = ['A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y',
                       'V']
 aa_residues = dict()
-
-van_der_waals_radiuses = {'Br': 2.22, 'C': 1.908, 'C*': 1.908, 'CA': 1.908, 'CB': 1.908, 'CC': 1.908, 'CD': 1.908,
-                          'CI': 1.908, 'CK': 1.908, 'CP': 1.908, 'CM': 1.908, 'CS': 1.908, 'CN': 1.908, 'CQ': 1.908,
-                          'CR': 1.908, 'CV': 1.908, 'CW': 1.908, 'CY': 1.908, 'C0': 1.7131, 'CZ': 1.908, 'C5': 1.908,
-                          'C4': 1.908, 'CT': 1.908, 'CX': 1.908, 'Cl': 1.948, 'EP': 0.0, 'F': 1.75, 'I': 2.35, 'H': 0.6,
-                          'HO': 0.0, 'HS': 0.6, 'HC': 1.487, 'H1': 1.387, 'H2': 1.287, 'H3': 1.187, 'HP': 1.1,
-                          'HA': 1.459, 'H4': 1.409, 'H5': 1.359, 'HW': 0.0, 'HZ': 1.459,'MG': 0.7926, 'N': 1.824,
-                          'N3': 1.84, 'O': 1.6612, 'O2': 1.6612, 'OD': 1.6612, 'OW': 1.7683, 'OH': 1.721, 'OS': 1.6837,
-                          'OP': 1.85, 'P': 2.1, 'S': 2.0, 'SH': 2.0,  'Zn': 1.1,
-                          # next ones are untrusted:
-                          'CE': 1.908, 'CG': 1.908, 'NE': 1.824, 'NH': 1.824, 'OE': 1.6612, 'OG': 1.6612, 'SD': 2.0,
-                          'SG': 2.0, 'OXT': 1.7683}
 
 
 class BoundingBox:
@@ -71,7 +61,7 @@ class AtomDesc:
     def __init__(self, fullname: str = '', type: str = '', radius = float(), charge = float(), edep = float(), A = float(), B = float(), mass = float(), parent_name: str = ''):
         self.fullname = fullname.replace(' ', '')
         self.type = type
-        self.rdius = radius
+        self.radius = radius
         self.charge = charge
         self.edep = edep
         self.A = A
@@ -315,6 +305,9 @@ def get_bounding_box(atoms: list) -> BoundingBox:
 
 def get_van_der_walls_radius(atom: Atom, residues: dict) -> float:
     residue_name = atom.get_parent().get_resname()
+    # correction of His form
+    if residue_name.upper() == 'HIS':
+        residue_name = 'HIE'
     residue = residues[residue_name]
     atom_description = residue.get_atom(atom.get_name())
 
@@ -326,6 +319,7 @@ def get_length(v: list) -> float:
 
 
 def point_belongs_to_active_site(point: list, atoms: list, center: list, residues: dict) -> bool:
+
     def get_direction(start: list, end: list) -> list:
         delta = numpy.subtract(end, start)
         length = get_length(delta)
@@ -342,7 +336,8 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list, residue
 
         # measure distance from ray to sphere center:
         # - if greater than radius, return False
-        sphere_center_to_ray_distance = get_length(numpy.subtract(sphere_center_projection, sphere_center))
+        sctrd = numpy.subtract(sphere_center_projection, sphere_center)
+        sphere_center_to_ray_distance = get_length(sctrd)
         if sphere_center_to_ray_distance > sphere_radius:
             return False
 
@@ -371,9 +366,8 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list, residue
     return True
 
 
-def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: BoundingBox, ligand_center_of_mass: list, residues: dict) -> list:
-    step = 0.2
-
+def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_box: BoundingBox, ligand_center_of_mass: list, residues: dict, ligand_atoms: list) -> list:
+    # todo it might be changed - check it!
     grid_coordinates = list()
 
     total_point_count = (bounding_box.max_x - bounding_box.min_x)//step * \
@@ -402,11 +396,18 @@ def get_potential_grid_coordinates(neighbour_atoms: list, bounding_box: Bounding
 
         x += step
 
+    for atom in ligand_atoms:
+        coords = atom.get_coord()
+        for point in grid_coordinates:
+            if get_length(numpy.subtract(point, coords)) <= get_van_der_walls_radius(atom, residues):
+                grid_coordinates.remove(point)
+            elif get_length(numpy.subtract(point, coords)) < 2.0:
+                print(f'distance: {get_length(numpy.subtract(point, coords))}, radius: {get_van_der_walls_radius(atom, residues)}')
     show_progress('potential grid calculation: ', 80, 1.0)
     return grid_coordinates
 
 
-def get_atoms_description() ->dict:
+def get_atoms_description()->dict:
     # get atom types description ones for all other functions if needed
     # some aa have 2 variants of protonation
 
@@ -481,14 +482,16 @@ def get_atoms_description() ->dict:
                     atom_type = ''
                     for atom in range(0, len(data)):
                         # fill the properties for common atoms
-                        if data['Atom'][atom] == atom_desc.get_type():
-                            atom_type = list(data['Atom']).index(atom_desc.get_type())
-                        elif atom_desc.get_type()[0] == 'C' and atom_desc.get_type() != 'CZ':
+                        if data['Atom'][atom] == atom_desc.get_type().upper():
+                            atom_type = list(data['Atom']).index(atom_desc.get_type().upper())
+                        elif atom_desc.get_type().upper()[0] == 'C' and atom_desc.get_type().upper() != 'CZ':
                             atom_type = list(data['Atom']).index('C*')
-                        elif atom_desc.get_type()[0] == 'N':
+                        elif atom_desc.get_type().upper()[0] == 'N':
                             atom_type = list(data['Atom']).index('N')
-                        elif atom_desc.get_type() == 'HW':
+                        elif atom_desc.get_type().upper() == 'HW':
                             atom_type = list(data['Atom']).index('HO')
+                        elif atom_desc.get_type().upper()[0] == 'O':
+                            atom_type = list(data['Atom']).index('O2')
 
                     atom_desc.radius = float(data['Radius'][atom_type])
                     atom_desc.edep = float(data['Edep'][atom_type])
@@ -532,13 +535,11 @@ def calculate_potential(point: list, atoms: list, residues: dict) -> (float, flo
 
         # check whether we should calculate Lennard-Jones potential
         sigma = (atom_description.get_radius() + 2.35) / 2  # 2.35 is VdW-radius for Iodine (the greatest possible one)
-        if distance > sigma * 2.5:  # 2.5 sigma is critical distance
-            continue
+        if distance <= sigma * 2.5:  # 2.5 sigma is critical distance
+            epsilon = atom_description.get_edep()
 
-        epsilon = atom_description.get_edep()
-
-        lennard_jones_energy = 4*epsilon*((sigma / distance)**12 - (sigma / distance)**6)
-        total_lennard_jones_energy += lennard_jones_energy
+            lennard_jones_energy = 4 * epsilon * ((sigma / distance) ** 12 - (sigma / distance) ** 6)
+            total_lennard_jones_energy += lennard_jones_energy
 
         atom_index += 1
         show_progress('potential grid calculation: ', 80, float(atom_index) / float(total_atom_count))
@@ -547,33 +548,43 @@ def calculate_potential(point: list, atoms: list, residues: dict) -> (float, flo
     return total_coulomb_potential, total_lennard_jones_energy
 
 
+def construct_active_site_in_potentials_form(grid_coordinates: list, atoms: list, residues: dict, inducer: 'str', step):
+    active_site_points = list()
+    for point in grid_coordinates:
+        coulomb_potential, lennard_jones_energy = calculate_potential(point, atoms, residues)
+        active_site_points.append(
+            {'coordinates': point, 'coulomb': coulomb_potential, 'lennard_jones': lennard_jones_energy})
+    print(f'{inducer} induced potentials calculated')
+
+    with open(f'active-site_{inducer}_{step}.csv', 'w') as file:
+        file.write('x,y,z,coulomb,lennard_jones\n')
+        for point in active_site_points:
+            file.write(
+                f'{point["coordinates"][0]},{point["coordinates"][1]},{point["coordinates"][2]},{point["coulomb"]},{point["lennard_jones"]}\n')
+        file.close
+
+
 if __name__ == '__main__':
     # prepare AA residues dictionary
     for i in range(len(aa_residue_names)):
         aa_residues[aa_residue_names[i]] = aa_residue_letters[i]
 
+    step = float(argv[1])
     parser = PDBParser()
-    structure = parser.get_structure('6b82', 'Docking_killer/proteins/CYPs/6b82_referense.pdb')
+    structure = parser.get_structure('6b82', 'Docking_killer/proteins/ChOxs/1coy_reference.pdb')
     chain = get_chain(structure)
     ligand = get_ligand(chain)
+    ligand_atoms = list(ligand.get_atoms())
     neighbour_atoms = get_neighbor_atoms(chain, ligand)
     bounding_box = get_bounding_box(neighbour_atoms)
     residues = get_atoms_description()
     print('residues info constructed')
-    grid_coordinates = get_potential_grid_coordinates(neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues)
+    grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues, ligand_atoms)
     print('grid coordinates calculated')
+    print(f'grid length: {len(grid_coordinates)}')
 
-    active_site_points = list()
-    for point in grid_coordinates:
-        coulomb_potential, lennard_jones_energy = calculate_potential(point, neighbour_atoms, residues)
-        active_site_points.append({'coordinates': point, 'coulomb': coulomb_potential, 'lennard_jones': lennard_jones_energy})
-    print('potentials calculated')
-
-    with open('active-site.csv', 'w') as file:
-        file.write('x,y,z,coulomb,lennard-jones\n')
-        for point in active_site_points:
-            file.write(f'{point["coordinates"][0]},{point["coordinates"][1]},{point["coordinates"][2]},{point["coulomb"]},{point["lennard_jones"]}\n')
-    print('file saved')
+    construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, residues, 'protein', step)
+    construct_active_site_in_potentials_form(grid_coordinates, ligand_atoms, residues, 'ligand', step)
 
 
     class NeighbourSelect(Select):
@@ -583,7 +594,7 @@ if __name__ == '__main__':
             else:
                 return 0
 
-    io = PDBIO()
-    io.set_structure(structure)
-    io.save('neighbours_only.pdb', NeighbourSelect())
+    # io = PDBIO()
+    # io.set_structure(structure)
+    # io.save('neighbours_only.pdb', NeighbourSelect())
 
