@@ -398,6 +398,8 @@ def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_
         for point in grid_coordinates:
             if get_length(numpy.subtract(point, coords)) <= get_van_der_walls_radius(atom, residues):
                 grid_coordinates.remove(point)
+            elif get_length(numpy.subtract(point, coords)) < 2.0:
+                print(f'distance: {get_length(numpy.subtract(point, coords))}, radius: {get_van_der_walls_radius(atom, residues)}')
     show_progress('potential grid calculation: ', 80, 1.0)
     return grid_coordinates
 
@@ -566,7 +568,7 @@ if __name__ == '__main__':
 
     step = float(argv[1])
     parser = PDBParser()
-    structure = parser.get_structure('6b82', 'Docking_killer/proteins/CYPs/6b82_H.pdb')
+    structure = parser.get_structure('6b82', 'Docking_killer/proteins/ChOxs/1coy_reference.pdb')
     chain = get_chain(structure)
     ligand = get_ligand(chain)
     ligand_atoms = list(ligand.get_atoms())
