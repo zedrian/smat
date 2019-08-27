@@ -548,20 +548,31 @@ def calculate_potential(point: list, atoms: list, residues: dict) -> (float, flo
     return total_coulomb_potential, total_lennard_jones_energy
 
 
-def construct_active_site_in_potentials_form(grid_coordinates: list, atoms: list, residues: dict, inducer: 'str', step):
+def construct_active_site_in_potentials_form(grid_coordinates: list, protein_atoms: list, ligand_atoms: list, residues: dict) -> list:
     active_site_points = list()
-    for point in grid_coordinates:
-        coulomb_potential, lennard_jones_energy = calculate_potential(point, atoms, residues)
-        active_site_points.append(
-            {'coordinates': point, 'coulomb': coulomb_potential, 'lennard_jones': lennard_jones_energy})
-    print(f'{inducer} induced potentials calculated')
 
-    with open(f'active-site_{inducer}_{step}.csv', 'w') as file:
-        file.write('x,y,z,coulomb,lennard_jones\n')
+    for point in grid_coordinates:
+        protein_coulomb_potential, protein_lennard_jones_energy = calculate_potential(point, protein_atoms, residues)
+        ligand_coulomb_potential, ligand_lennard_jones_energy = calculate_potential(point, ligand_atoms, residues)
+        if ligand_lennard_jones_energy != 0 and ligand_lennard_jones_energy < 10.0:
+            active_site_points.append(
+                {'coordinates': point, 'protein_coulomb': protein_coulomb_potential, f'protein_lennard_jones': protein_lennard_jones_energy,
+                 'ligand_coulomb': ligand_coulomb_potential, 'ligand_lennard_jones': ligand_lennard_jones_energy})
+    print('potentials calculated')
+
+    return active_site_points
+
+
+def save_active_site_to_file(active_site_points: list, step):
+    with open(f'active-site_{step}.csv', 'w') as file:
+        file.write('x,y,z,protein_coulomb,protein_lennard_jones,ligand_coulomb,ligand_lennard_jones\n')
         for point in active_site_points:
             file.write(
-                f'{point["coordinates"][0]},{point["coordinates"][1]},{point["coordinates"][2]},{point["coulomb"]},{point["lennard_jones"]}\n')
-        file.close
+                f'{point["coordinates"][0]},{point["coordinates"][1]},{point["coordinates"][2]},'
+                f'{point["protein_coulomb"]},{point["protein_lennard_jones"]},'
+                f'{point["ligand_coulomb"]},{point["ligand_lennard_jones"]}'
+                '\n')
+        file.close()
 
 
 if __name__ == '__main__':
@@ -571,7 +582,7 @@ if __name__ == '__main__':
 
     step = float(argv[1])
     parser = PDBParser()
-    structure = parser.get_structure('6b82', 'Docking_killer/proteins/ChOxs/1coy_reference.pdb')
+    structure = parser.get_structure('6b82', 'Docking_killer/proteins/CYPs/6b82.pdb')
     chain = get_chain(structure)
     ligand = get_ligand(chain)
     ligand_atoms = list(ligand.get_atoms())
@@ -583,9 +594,8 @@ if __name__ == '__main__':
     print('grid coordinates calculated')
     print(f'grid length: {len(grid_coordinates)}')
 
-    construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, residues, 'protein', step)
-    construct_active_site_in_potentials_form(grid_coordinates, ligand_atoms, residues, 'ligand', step)
-
+    active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms, residues)
+    save_active_site_to_file(active_site_points, step)
 
     class NeighbourSelect(Select):
         def accept_atom(self, atom):
