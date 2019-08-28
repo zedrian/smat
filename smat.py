@@ -9,8 +9,8 @@ from Bio.PDB.Atom import Atom
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Structure import Structure
 from Bio.SubsMat.MatrixInfo import blosum62
-from pandas import read_csv, DataFrame
-from scipy import stats
+from pandas import read_csv
+import os
 from pprint import pprint
 
 
@@ -359,6 +359,7 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list, residue
 
     # check whether center-to-point ray intersects any van der Waals radius of atoms
     for atom in atoms:
+        print(atom)
         radius = get_van_der_walls_radius(atom, residues)
         if ray_intersects_sphere(center, point, atom.coord, radius):
             return False
@@ -401,8 +402,6 @@ def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_
         for point in grid_coordinates:
             if get_length(numpy.subtract(point, coords)) <= get_van_der_walls_radius(atom, residues):
                 grid_coordinates.remove(point)
-            elif get_length(numpy.subtract(point, coords)) < 2.0:
-                print(f'distance: {get_length(numpy.subtract(point, coords))}, radius: {get_van_der_walls_radius(atom, residues)}')
     show_progress('potential grid calculation: ', 80, 1.0)
     return grid_coordinates
 
@@ -411,88 +410,142 @@ def get_atoms_description() -> dict:
     # get atom types description ones for all other functions if needed
     # some aa have 2 variants of protonation
 
-    # divide prep file on described residues per lines
-    elements = dict()
-    index = 0
-    elements[index] = []
-    with open('Docking_killer/database/prep/all.in', 'r') as file:
-        for line in file.readlines()[2:]:
-            if line.rstrip() != 'DONE' and line.rstrip() != 'STOP':
-               elements[index].append(line.rstrip())
-            elif line.rstrip() == 'DONE':
-                index += 1
-                elements[index] = []
-                continue
-            else:
-                break
-        file.close()
-
     # get some data from csv table
     data = read_csv('Docking_killer/VanDerWaals.csv', header=0, delimiter=';')
 
     # construct the final dict with proper data
     # parsing the dictionary with lines
     residues = dict()
-    for key in list(elements.keys())[:-1]:
+    def construct_resdesclist_from_prep(residues: dict):
 
-        # find molecules with separated charges notes
-        separate_charges = list() # if we have such - they will store here
-        for line in elements[list(elements.keys())[key]]:
-            if line.rstrip().split(' ')[0] == 'CHARGE':
-
-                # get these fucking charges as array of strings
-                index = elements[list(elements.keys())[key]].index(line) + 1
-                while line != '':
-                    line = elements[list(elements.keys())[key]][index]
-                    separate_charges = separate_charges + [x for x in line.rstrip().split(' ') if x != '']
+        # divide prep file on described residues per lines
+        elements = dict()
+        index = 0
+        elements[index] = []
+        with open('Docking_killer/database/prep/all.in', 'r') as file:
+            for line in file.readlines()[2:]:
+                if line.rstrip() != 'DONE' and line.rstrip() != 'STOP':
+                    elements[index].append(line.rstrip())
+                elif line.rstrip() == 'DONE':
                     index += 1
+                    elements[index] = []
+                    continue
+                else:
+                    break
+            file.close()
 
-        # create ResidueDesc object and fill the variables
-        res_desc = ResidueDesc(long_name=elements[key][0], short_name=elements[key][2].split(' ')[1], atoms=list())
-        for line in range(5, len(elements[key])):
-            if elements[key][line] != '':
-                line_elements = [x for x in elements[key][line].split(' ') if x != '']
-                # filter the dummy atoms
-                if line_elements and line_elements[1] != 'DUMM':
+        for key in list(elements.keys())[:-1]:
 
-                    # filter the lone pairs
-                    if line_elements[2] == 'LP':
-                        continue
+            # find molecules with separated charges notes
+            separate_charges = list() # if we have such - they will store here
+            for line in elements[list(elements.keys())[key]]:
+                if line.rstrip().split(' ')[0] == 'CHARGE':
 
-                    # create AtomDesc object for all atoms in residue
-                    atom_desc = AtomDesc(fullname=line_elements[1], type=line_elements[2], parent_name=res_desc.get_short_name())
+                    # get these fucking charges as array of strings
+                    index = elements[list(elements.keys())[key]].index(line) + 1
+                    while line != '':
+                        line = elements[list(elements.keys())[key]][index]
+                        separate_charges = separate_charges + [x for x in line.rstrip().split(' ') if x != '']
+                        index += 1
 
-                    # fill the charges
-                    if len(separate_charges) == 0:
-                        atom_desc.charge = float(line_elements[10])
+            # create ResidueDesc object and fill the variables
+            res_desc = ResidueDesc(long_name=elements[key][0], short_name=elements[key][2].split(' ')[1], atoms=list())
+            for line in range(5, len(elements[key])):
+                if elements[key][line] != '':
+                    line_elements = [x for x in elements[key][line].split(' ') if x != '']
+                    # filter the dummy atoms
+                    if line_elements and line_elements[1] != 'DUMM':
+
+                        # filter the lone pairs
+                        if line_elements[2] == 'LP':
+                            continue
+
+                        # create AtomDesc object for all atoms in residue
+                        atom_desc = AtomDesc(fullname=line_elements[1], type=line_elements[2], parent_name=res_desc.get_short_name())
+
+                        # fill the charges
+                        if len(separate_charges) == 0:
+                            atom_desc.charge = float(line_elements[10])
+                        else:
+                            # check if dummy atoms have charges
+                            #calculate the number of atoms
+                            index = 0
+                            for i in range(5, len(elements[key])):
+                                if elements[key][i] != '':
+                                    index += 1
+                                else:
+                                    break
+
+                            if len(separate_charges) == index: # they have
+                                atom_desc.charge = float(separate_charges[line - 5])
+                            else: # they don't
+                                atom_desc.charge = float(separate_charges[line - 8])
+
+                        atom_type = ''
+                        for atom in range(0, len(data)):
+                            # fill the properties for common atoms
+                            if data['Atom'][atom] == atom_desc.get_type().upper():
+                                atom_type = list(data['Atom']).index(atom_desc.get_type().upper())
+                        if atom_desc.get_type().upper()[0] == 'C' and atom_desc.get_type().upper() != 'CZ':
+                            atom_type = list(data['Atom']).index('C*')
+                        elif atom_desc.get_type().upper()[0] == 'N':
+                            atom_type = list(data['Atom']).index('N')
+                        elif atom_desc.get_type().upper()[0] == 'H':
+                            atom_type = list(data['Atom']).index('HO')
+                        elif atom_desc.get_type().upper()[0] == 'O':
+                            atom_type = list(data['Atom']).index('O2')
+                        elif atom_desc.get_type().upper()[0] == 'P':
+                            atom_type = list(data['Atom']).index('P')
+
+                        atom_desc.radius = float(data['Radius'][atom_type])
+                        atom_desc.edep = float(data['Edep'][atom_type])
+                        atom_desc.A = float(data['A'][atom_type])
+                        atom_desc.B = float(data['B'][atom_type])
+                        atom_desc.mass = float(data['Mass'][atom_type])
+
+                        # fill the properties for atoms that are not normal
+                        # we have undefined atom type CZ - for sp hybridisated C
+
+                        res_desc.atoms.append(atom_desc)
+
+                else:
+                    break
+
+            residues[res_desc.get_short_name()] = res_desc
+
+
+    def construct_resdesclist_from_lib(residues: dict):
+        libdir = 'Docking_killer/database/lib'
+        for root, dirs, filenames in os.walk(libdir):
+            for file in filenames:
+                lines = open(os.path.join(root, file), 'r').readlines()
+                res_name = lines[1].rstrip()[1:]
+                res_desc = ResidueDesc(long_name=res_name.replace('"', ''), short_name=res_name.replace('"', ''), atoms=list())
+                res_atoms_lines = []
+                for line in lines[3:]:
+                    if line[0] != '!':
+                        res_atoms_lines.append(line.rstrip())
                     else:
-                        # check if dummy atoms have charges
-                        #calculate the number of atoms
-                        index = 0
-                        for i in range(5, len(elements[key])):
-                            if elements[key][i] != '':
-                                index += 1
-                            else:
-                                break
-
-                        if len(separate_charges) == index: # they have
-                            atom_desc.charge = float(separate_charges[line - 5])
-                        else: # they don't
-                            atom_desc.charge = float(separate_charges[line - 8])
+                        break
+                for line in res_atoms_lines:
+                    line_elements = [x.strip('\"') for x in line.split(' ')[1:]]
+                    atom_desc = AtomDesc(fullname=line_elements[0], type=line_elements[1], parent_name=res_desc.get_short_name(), charge=line_elements[7])
 
                     atom_type = ''
                     for atom in range(0, len(data)):
                         # fill the properties for common atoms
                         if data['Atom'][atom] == atom_desc.get_type().upper():
                             atom_type = list(data['Atom']).index(atom_desc.get_type().upper())
-                        elif atom_desc.get_type().upper()[0] == 'C' and atom_desc.get_type().upper() != 'CZ':
-                            atom_type = list(data['Atom']).index('C*')
-                        elif atom_desc.get_type().upper()[0] == 'N':
-                            atom_type = list(data['Atom']).index('N')
-                        elif atom_desc.get_type().upper() == 'HW':
-                            atom_type = list(data['Atom']).index('HO')
-                        elif atom_desc.get_type().upper()[0] == 'O':
-                            atom_type = list(data['Atom']).index('O2')
+                    if atom_desc.get_type().upper()[0] == 'C' and atom_desc.get_type().upper() != 'CZ':
+                        atom_type = list(data['Atom']).index('C*')
+                    elif atom_desc.get_type().upper()[0] == 'N':
+                        atom_type = list(data['Atom']).index('N')
+                    elif atom_desc.get_type().upper()[0] == 'H':
+                        atom_type = list(data['Atom']).index('HO')
+                    elif atom_desc.get_type().upper()[0] == 'O':
+                        atom_type = list(data['Atom']).index('O2')
+                    elif atom_desc.get_type().upper()[0] == 'P':
+                        atom_type = list(data['Atom']).index('P')
 
                     atom_desc.radius = float(data['Radius'][atom_type])
                     atom_desc.edep = float(data['Edep'][atom_type])
@@ -505,10 +558,11 @@ def get_atoms_description() -> dict:
 
                     res_desc.atoms.append(atom_desc)
 
-            else:
-                break
+                residues[res_desc.get_short_name()] = res_desc
 
-        residues[res_desc.get_short_name()] = res_desc
+
+    construct_resdesclist_from_prep(residues)
+    construct_resdesclist_from_lib(residues)
 
     return residues
 
@@ -583,7 +637,7 @@ if __name__ == '__main__':
 
     step = float(argv[1])
     parser = PDBParser()
-    structure = parser.get_structure('6b82', 'Docking_killer/proteins/CYPs/6b82.pdb')
+    structure = parser.get_structure('6b82', 'Docking_killer/proteins/ChOxs/1coy_reference.pdb')
     chain = get_chain(structure)
     ligand = get_ligand(chain)
     ligand_atoms = list(ligand.get_atoms())
