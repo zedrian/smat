@@ -407,7 +407,7 @@ def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_
     return grid_coordinates
 
 
-def get_atoms_description()->dict:
+def get_atoms_description() -> dict:
     # get atom types description ones for all other functions if needed
     # some aa have 2 variants of protonation
 
@@ -425,6 +425,7 @@ def get_atoms_description()->dict:
                 continue
             else:
                 break
+        file.close()
 
     # get some data from csv table
     data = read_csv('Docking_killer/VanDerWaals.csv', header=0, delimiter=';')
