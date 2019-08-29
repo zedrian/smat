@@ -359,7 +359,6 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list, residue
 
     # check whether center-to-point ray intersects any van der Waals radius of atoms
     for atom in atoms:
-        print(atom)
         radius = get_van_der_walls_radius(atom, residues)
         if ray_intersects_sphere(center, point, atom.coord, radius):
             return False
