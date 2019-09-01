@@ -664,11 +664,26 @@ def save_active_site_to_file(active_site_points: list, step):
 
 def write_units_csv(units: list):
     with open(f'units.csv', 'w') as file:
-        file.write('x,y,z,radius,red,green,blue,atom_name,atom_type,residue_name\n')
+        file.write('x,y,z,radius,rgb,atom_name,atom_type,residue_name\n')
         for unit in units:
             for atom in unit.get_atoms():
+                rgb = '000000'
+                if atom.get_type()[0].upper() == 'C' and atom.get_type() != 'Cl':
+                    rgb = 'FFFFCC'
+                elif atom.get_type()[0].upper() == 'N':
+                    rgb = '3366FF'
+                elif atom.get_type()[0].upper() == 'O':
+                    rgb = 'FF3300'
+                elif atom.get_type()[0].upper() == 'H':
+                    rgb = 'FFFFFF'
+                elif atom.get_type()[0].upper() == 'S':
+                    rgb = 'FFFF00'
+                elif atom.get_type() == 'Cl':
+                    rgb = '33FF33'
+                elif atom.get_type() == 'Fe':
+                    rgb = '996600'
                 file.write(
-                    f'{atom.get_x()},{atom.get_y()},{atom.get_z()},{atom.get_radius()},red,green,blue,{atom.get_fullname()},'
+                    f'{atom.get_x()},{atom.get_y()},{atom.get_z()},{atom.get_radius()},{rgb},{atom.get_fullname()},'
                     f'{atom.get_type()},{atom.get_parent_name()}\n'
                 )
             file.write('TER\n')
@@ -694,7 +709,7 @@ if __name__ == '__main__':
     print('grid coordinates calculated')
     print(f'grid length: {len(grid_coordinates)}')
 
-    active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms, residues, res_f_p=[ligand.get_resname()])
+    active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms, residues, res_f_p=[ligand.get_resname(), 'HEM'])
     save_active_site_to_file(active_site_points, step)
 
     class NeighbourSelect(Select):
