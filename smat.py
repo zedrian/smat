@@ -58,7 +58,7 @@ class BoundingBox:
 
 
 class AtomDesc:
-    def __init__(self, fullname: str = '', type: str = '', radius = float(), charge = float(), edep = float(), A = float(), B = float(), mass = float(), parent_name: str = ''):
+    def __init__(self, fullname: str = '', type: str = '', radius = float(), charge = float(), edep = float(), A = float(), B = float(), mass = float(), parent_name: str = '', x = float(), y = float(), z = float()):
         self.fullname = fullname.replace(' ', '')
         self.type = type
         self.radius = radius
@@ -68,10 +68,14 @@ class AtomDesc:
         self.B = B
         self.mass = mass
         self.parent_name = parent_name
+        self.x = x
+        self.y = y
+        self.z = z
 
     def __repr__(self):
         return f'Atom full name: {self.fullname}\n' + \
             f'Atom type: {self.type}\n' + \
+            f'Atom coords: {self.x} {self.y} {self.z}\n' + \
             f'Atom radius: {self.radius}\n' + \
             f'Atom charge: {self.charge}\n' + \
             f'Atom edep: {self.edep}\n' + \
@@ -107,9 +111,18 @@ class AtomDesc:
     def get_parent_name(self):
         return self.parent_name
 
+    def get_x(self):
+        return self.x
+
+    def get_y(self):
+        return self.y
+
+    def get_z(self):
+        return self.z
+
 
 class ResidueDesc:
-    def __init__(self, long_name: str, short_name: str, atoms=list()):
+    def __init__(self, long_name: str, short_name: str, atoms: list):
         self.long_name = long_name
         self.short_name = short_name
         self.atoms = atoms
@@ -407,7 +420,8 @@ def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_
 
 def get_atoms_description() -> dict:
     # get atom types description ones for all other functions if needed
-    # some aa have 2 variants of protonation
+    # some aa have 2 variants of protonation state
+    # if 'res_f_p' (residues for print) are given it writes csv file for visualisation
 
     # get some data from csv table
     data = read_csv('Docking_killer/VanDerWaals.csv', header=0, delimiter=';')
@@ -566,7 +580,7 @@ def get_atoms_description() -> dict:
     return residues
 
 
-def calculate_potential(point: list, atoms: list, residues: dict) -> (float, float):
+def calculate_potential(point: list, atoms: list, residues: dict, res_f_p: list = None) -> (float, float):
     # point is a list of coordinates like [x, y, z]
     # atoms is a list of Atom objects
     # residues is a dictionary with residue descriptions
@@ -580,6 +594,12 @@ def calculate_potential(point: list, atoms: list, residues: dict) -> (float, flo
     for atom in atoms:
         residue_name = atom.get_parent().get_resname()
         atom_description = residues[residue_name].get_atom(atom.get_name())
+
+        # fill the coords of local Atom class
+        residues[residue_name].get_atom(atom.get_name()).x = atom.get_coord()[0]
+        residues[residue_name].get_atom(atom.get_name()).y = atom.get_coord()[1]
+        residues[residue_name].get_atom(atom.get_name()).z = atom.get_coord()[2]
+        # it shouldn't be here but nevertheless
 
         # calculate Coulomb potential
         charge = atom_description.get_charge()
@@ -599,14 +619,27 @@ def calculate_potential(point: list, atoms: list, residues: dict) -> (float, flo
         show_progress('potential grid calculation: ', 80, float(atom_index) / float(total_atom_count))
 
     show_progress('potential grid calculation: ', 80, 1.0)
+
+    # write csv file with units for visualisator if exist
+    if res_f_p:
+        units_to_write = list()
+        for res in res_f_p:
+            for unit in residues.keys():
+                if res == residues[unit].get_short_name():
+                    units_to_write.append(residues[unit])
+
+        write_units_csv(units_to_write)
+
     return total_coulomb_potential, total_lennard_jones_energy
 
 
-def construct_active_site_in_potentials_form(grid_coordinates: list, protein_atoms: list, ligand_atoms: list, residues: dict) -> list:
+def construct_active_site_in_potentials_form(grid_coordinates: list, protein_atoms: list, ligand_atoms: list, residues: dict, res_f_p: list = None) -> list:
+    # calculate indused potentials and Van Der Waals energy in each point of active center grid
+
     active_site_points = list()
 
     for point in grid_coordinates:
-        protein_coulomb_potential, protein_lennard_jones_energy = calculate_potential(point, protein_atoms, residues)
+        protein_coulomb_potential, protein_lennard_jones_energy = calculate_potential(point, protein_atoms, residues, res_f_p)
         ligand_coulomb_potential, ligand_lennard_jones_energy = calculate_potential(point, ligand_atoms, residues)
         if ligand_lennard_jones_energy != 0 and ligand_lennard_jones_energy < 10.0:
             active_site_points.append(
@@ -629,6 +662,34 @@ def save_active_site_to_file(active_site_points: list, step):
         file.close()
 
 
+def write_units_csv(units: list):
+    with open(f'units.csv', 'w') as file:
+        file.write('x,y,z,radius,rgb,atom_name,atom_type,residue_name\n')
+        for unit in units:
+            for atom in unit.get_atoms():
+                rgb = '000000'
+                if atom.get_type()[0].upper() == 'C' and atom.get_type() != 'Cl':
+                    rgb = 'FFFFCC'
+                elif atom.get_type()[0].upper() == 'N':
+                    rgb = '3366FF'
+                elif atom.get_type()[0].upper() == 'O':
+                    rgb = 'FF3300'
+                elif atom.get_type()[0].upper() == 'H':
+                    rgb = 'FFFFFF'
+                elif atom.get_type()[0].upper() == 'S':
+                    rgb = 'FFFF00'
+                elif atom.get_type() == 'Cl':
+                    rgb = '33FF33'
+                elif atom.get_type() == 'Fe':
+                    rgb = '996600'
+                file.write(
+                    f'{atom.get_x()},{atom.get_y()},{atom.get_z()},{atom.get_radius()},{rgb},{atom.get_fullname()},'
+                    f'{atom.get_type()},{atom.get_parent_name()}\n'
+                )
+            file.write('TER\n')
+        file.close()
+
+
 if __name__ == '__main__':
     # prepare AA residues dictionary
     for i in range(len(aa_residue_names)):
@@ -636,7 +697,7 @@ if __name__ == '__main__':
 
     step = float(argv[1])
     parser = PDBParser()
-    structure = parser.get_structure('6b82', 'Docking_killer/proteins/ChOxs/1coy_reference.pdb')
+    structure = parser.get_structure('6b82', 'Docking_killer/proteins/CYPs/6b82.pdb')
     chain = get_chain(structure)
     ligand = get_ligand(chain)
     ligand_atoms = list(ligand.get_atoms())
@@ -644,11 +705,11 @@ if __name__ == '__main__':
     bounding_box = get_bounding_box(neighbour_atoms)
     residues = get_atoms_description()
     print('residues info constructed')
-    grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues, ligand_atoms)
+    grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues, ligand_atoms, )
     print('grid coordinates calculated')
     print(f'grid length: {len(grid_coordinates)}')
 
-    active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms, residues)
+    active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms, residues, res_f_p=[ligand.get_resname(), 'HEM'])
     save_active_site_to_file(active_site_points, step)
 
     class NeighbourSelect(Select):
