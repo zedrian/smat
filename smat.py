@@ -429,13 +429,13 @@ def get_atoms_description() -> dict:
     # construct the final dict with proper data
     # parsing the dictionary with lines
     residues = dict()
-    def construct_resdesclist_from_prep(residues: dict):
+    def construct_resdesclist_from_prep(residues: dict, prepfile: str):
 
         # divide prep file on described residues per lines
         elements = dict()
         index = 0
         elements[index] = []
-        with open('Docking_killer/database/prep/all.in', 'r') as file:
+        with open(prepfile, 'r') as file:
             for line in file.readlines()[2:]:
                 if line.rstrip() != 'DONE' and line.rstrip() != 'STOP':
                     elements[index].append(line.rstrip())
@@ -573,8 +573,10 @@ def get_atoms_description() -> dict:
 
                 residues[res_desc.get_short_name()] = res_desc
 
-
-    construct_resdesclist_from_prep(residues)
+    prepdir = 'Docking_killer/database/prep/'
+    for root, dirs, filenames in os.walk(prepdir):
+        for prepfile in filenames:
+            construct_resdesclist_from_prep(residues, os.path.join(root, prepfile))
     construct_resdesclist_from_lib(residues)
 
     return residues
