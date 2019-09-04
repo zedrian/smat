@@ -462,7 +462,14 @@ def get_atoms_description() -> dict:
                         index += 1
 
             # create ResidueDesc object and fill the variables
-            res_desc = ResidueDesc(long_name=elements[key][0], short_name=elements[key][2].split(' ')[1], atoms=list())
+            if elements[key][2].split(' ')[0] != '':
+                short_name = elements[key][2].split(' ')[0]
+                long_name = None
+            else:
+                short_name = elements[key][2].split(' ')[1]
+                long_name = elements[key][0]
+
+            res_desc = ResidueDesc(long_name=long_name, short_name=short_name, atoms=list())
             for line in range(5, len(elements[key])):
                 if elements[key][line] != '':
                     line_elements = [x for x in elements[key][line].split(' ') if x != '']
