@@ -1,6 +1,6 @@
 Atom;Radius;Edep;A;B;Mass;Desc
 H;0.6;0.0157;0;0;1.008;H bonded to nitrogen atoms
-HO;0;0;0;0;1.008;hydroxyl group
+HO;0.3;0;0;0;1.008;hydroxyl group
 HS;0.6;0.0157;0;0;1.008;hydrogen bonded to sulphur (pol?)
 HC;1.487;0.0157;0;0;1.008;H aliph. bond. to C without electrwd.group
 H1;1.387;0.0157;0;0;1.008;H aliph. bond. to C with 1 electrwd. group
@@ -36,4 +36,4 @@ F;1.75;0.061;Nan;Nan;19;fluorine (not fluoride!)
 Cl;1.948;0.265;26000420.3;3500.0511;35.45;chlorine (Applequist) (not chloride!)
 Br;2.22;0.32;Nan;Nan;79.9;bromine (Applequist) (not bromide!)
 I;2.35;0.4;Nan;Nan;126.9;iodine (Applequist) (not iodide!)
-FE;Nan;Nan;Nan;Nan;55;Iron
+FE;1.32;Nan;Nan;Nan;55;Iron

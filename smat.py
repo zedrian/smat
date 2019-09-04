@@ -667,26 +667,28 @@ def write_units_csv(units: list):
         file.write('x,y,z,radius,rgb,atom_name,atom_type,residue_name\n')
         for unit in units:
             for atom in unit.get_atoms():
-                rgb = '000000'
-                if atom.get_type()[0].upper() == 'C' and atom.get_type() != 'Cl':
-                    rgb = 'FFFFCC'
-                elif atom.get_type()[0].upper() == 'N':
-                    rgb = '3366FF'
-                elif atom.get_type()[0].upper() == 'O':
-                    rgb = 'FF3300'
-                elif atom.get_type()[0].upper() == 'H':
-                    rgb = 'FFFFFF'
-                elif atom.get_type()[0].upper() == 'S':
-                    rgb = 'FFFF00'
-                elif atom.get_type() == 'Cl':
-                    rgb = '33FF33'
-                elif atom.get_type() == 'Fe':
-                    rgb = '996600'
-                file.write(
-                    f'{atom.get_x()},{atom.get_y()},{atom.get_z()},{atom.get_radius()},{rgb},{atom.get_fullname()},'
-                    f'{atom.get_type()},{atom.get_parent_name()}\n'
-                )
-            file.write('TER\n')
+                if atom.get_x() == atom.get_y() == atom.get_z() == 0.0:
+                    continue
+                else:
+                    rgb = '000000'
+                    if atom.get_type()[0].upper() == 'C' and atom.get_type() != 'Cl':
+                        rgb = 'FFFFCC'
+                    elif atom.get_type()[0].upper() == 'N':
+                        rgb = '3366FF'
+                    elif atom.get_type()[0].upper() == 'O':
+                        rgb = 'FF3300'
+                    elif atom.get_type()[0].upper() == 'H':
+                        rgb = 'FFFFFF'
+                    elif atom.get_type()[0].upper() == 'S':
+                        rgb = 'FFFF00'
+                    elif atom.get_type() == 'Cl':
+                        rgb = '33FF33'
+                    elif atom.get_type() == 'Fe':
+                        rgb = '996600'
+                    file.write(
+                        f'{atom.get_x()},{atom.get_y()},{atom.get_z()},{atom.get_radius()},{rgb},{atom.get_fullname()},'
+                        f'{atom.get_type()},{atom.get_parent_name()}\n'
+                    )
         file.close()
 
 
