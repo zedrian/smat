@@ -429,13 +429,13 @@ def get_atoms_description() -> dict:
     # construct the final dict with proper data
     # parsing the dictionary with lines
     residues = dict()
-    def construct_resdesclist_from_prep(residues: dict):
+    def construct_resdesclist_from_prep(residues: dict, prepfile: str):
 
         # divide prep file on described residues per lines
         elements = dict()
         index = 0
         elements[index] = []
-        with open('Docking_killer/database/prep/all.in', 'r') as file:
+        with open(prepfile, 'r') as file:
             for line in file.readlines()[2:]:
                 if line.rstrip() != 'DONE' and line.rstrip() != 'STOP':
                     elements[index].append(line.rstrip())
@@ -462,7 +462,14 @@ def get_atoms_description() -> dict:
                         index += 1
 
             # create ResidueDesc object and fill the variables
-            res_desc = ResidueDesc(long_name=elements[key][0], short_name=elements[key][2].split(' ')[1], atoms=list())
+            if elements[key][2].split(' ')[0] != '':
+                short_name = elements[key][2].split(' ')[0]
+                long_name = None
+            else:
+                short_name = elements[key][2].split(' ')[1]
+                long_name = elements[key][0]
+
+            res_desc = ResidueDesc(long_name=long_name, short_name=short_name, atoms=list())
             for line in range(5, len(elements[key])):
                 if elements[key][line] != '':
                     line_elements = [x for x in elements[key][line].split(' ') if x != '']
@@ -573,8 +580,10 @@ def get_atoms_description() -> dict:
 
                 residues[res_desc.get_short_name()] = res_desc
 
-
-    construct_resdesclist_from_prep(residues)
+    prepdir = 'Docking_killer/database/prep/'
+    for root, dirs, filenames in os.walk(prepdir):
+        for prepfile in filenames:
+            construct_resdesclist_from_prep(residues, os.path.join(root, prepfile))
     construct_resdesclist_from_lib(residues)
 
     return residues
