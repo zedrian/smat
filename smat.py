@@ -712,6 +712,7 @@ def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: dict) 
     progress = 0.0
     for ligand_atom in ligand_atoms:
         show_progress('calculating forces: ', 40, progress)
+        integral_force = [0, 0, 0]
         integral_coulomb_force = [0, 0, 0]
         integral_lennard_force = [0, 0, 0]
         # TODO: refactor
