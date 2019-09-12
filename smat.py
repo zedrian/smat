@@ -739,8 +739,45 @@ def calculate_coulomb_forces(ligand_atoms: list, neighbour_atoms: list, residues
     return forces
 
 
-def save_forces_to_file(forces: dict, results_folder: str, pdb_file: str):
-    file_name = os.path.join(results_folder, f'{pdb_file[:-4]}_forces.csv')
+def calculate_lennard_jones_forces(ligand_atoms: list, neighbour_atoms: list, residues: dict) -> dict:
+    forces = dict()
+    ligand_atom_count = float(len(ligand_atoms))
+    progress = 0.0
+    for ligand_atom in ligand_atoms:
+        show_progress('calculating forces: ', 40, progress)
+        integral_force = [0, 0, 0]
+        # TODO: refactor
+        ligand_atom_edep = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_edep()
+        ligand_atom_A = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_A()
+        ligand_atom_B = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_B()
+        ligand_atom_radius = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_radius()
+        ligand_atom_position = ligand_atom.coord
+        for protein_atom in neighbour_atoms:
+            protein_atom_position = protein_atom.coord
+            position_delta = numpy.subtract(protein_atom_position, ligand_atom_position)
+            distance = get_length(position_delta)
+            force_direction = get_direction(ligand_atom_position, protein_atom_position)
+            if distance < ligand_atom_radius * 2.0:
+                # calculate the force according http://phys.ubbcluj.ro/~tbeu/MD/C2_for.pdf 2.5
+                force_module = 48.0 * ligand_atom_edep /distance**2 * (ligand_atom_A/distance**12 - 0.5 * ligand_atom_B/distance**6)
+                force = [force_direction[0] * force_module,
+                         force_direction[1] * force_module,
+                         force_direction[2] * force_module]
+                integral_force = [integral_force[0] + force[0],
+                                  integral_force[1] + force[1],
+                                  integral_force[2] + force[2]]
+
+        # save to dictionary
+        forces[ligand_atom.get_name()] = (ligand_atom_position, integral_force)
+
+        progress += 1.0 / ligand_atom_count
+    show_progress('calculating forces: ', 40, 1.0)
+
+    return forces
+
+
+def save_forces_to_file(forces: dict, results_folder: str, pdb_file: str, type: str):
+    file_name = os.path.join(results_folder, f'{pdb_file[:-4]}_{type}_forces.csv')
     with open(file_name, 'w') as file:
         file.write('atom_name,x,y,z,force_x,force_y,force_z\n')
         for atom in forces:
@@ -775,7 +812,8 @@ if __name__ == '__main__':
     if not os.path.exists(results_folder):
         os.makedirs(results_folder)
 
-    accumulated_forces = dict()
+    accumulated_coulomb_forces = dict()
+    accumulated_lennard_forces = dict()
 
     for root, dirs, filenames in os.walk(input_folder):
         file_count = float(len(filenames))
@@ -797,12 +835,16 @@ if __name__ == '__main__':
             neighbour_atoms = get_neighbor_atoms(chain, ligand)
             bounding_box = get_bounding_box(neighbour_atoms)
 
-            forces = calculate_coulomb_forces(ligand_atoms, neighbour_atoms, residues)
-            save_forces_to_file(forces, results_folder, pdb_file)
+            coulomb_forces = calculate_coulomb_forces(ligand_atoms, neighbour_atoms, residues)
+            lennard_forces = calculate_lennard_jones_forces(ligand_atoms, neighbour_atoms, residues)
+            save_forces_to_file(coulomb_forces, results_folder, pdb_file, 'coulomb')
+            save_forces_to_file(lennard_forces, results_folder, pdb_file, 'lennard')
 
-            accumulated_force = calculate_accumulated_force(forces)
-            print(f'accumulated force = {accumulated_force}')
-            accumulated_forces[pdb_file] = accumulated_force
+            accumulated_coulomb_force = calculate_accumulated_force(coulomb_forces)
+            accumulated_lennard_force = calculate_accumulated_force(lennard_forces)
+            print(f'accumulated force = {lennard_forces}')
+            accumulated_coulomb_forces[pdb_file] = accumulated_coulomb_force
+            accumulated_lennard_forces[pdb_file] = accumulated_lennard_force
 
             grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues, ligand_atoms)
             print('grid coordinates calculated')
@@ -813,11 +855,17 @@ if __name__ == '__main__':
 
             file_index += 1.0 / file_count
 
-    with open(os.path.join(results_folder, 'accumulated_forces.csv'), 'w') as file:
+    with open(os.path.join(results_folder, 'accumulated_coulomb_forces.csv'), 'w') as file:
         file.write('pdb,force\n')
-        for pdb in accumulated_forces:
-            file.write(f'{pdb},{get_length(accumulated_forces[pdb])}\n')
-        print('accumulated forces saved')
+        for pdb in accumulated_coulomb_forces:
+            file.write(f'{pdb},{get_length(accumulated_coulomb_forces[pdb])}\n')
+        print('accumulated coulomb forces saved')
+
+    with open(os.path.join(results_folder, 'accumulated_lennard_forces.csv'), 'w') as file:
+        file.write('pdb,force\n')
+        for pdb in accumulated_lennard_forces:
+            file.write(f'{pdb},{get_length(accumulated_lennard_forces[pdb])}\n')
+        print('accumulated lennard forces saved')
 
 
     class NeighbourSelect(Select):
