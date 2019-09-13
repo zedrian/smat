@@ -383,9 +383,9 @@ def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_
     # todo it might be changed - check it!
     grid_coordinates = list()
 
-    total_point_count = (bounding_box.max_x - bounding_box.min_x)//step * \
-                        (bounding_box.max_y - bounding_box.min_y)//step * \
-                        (bounding_box.max_z - bounding_box.min_z)//step
+    total_point_count = ((bounding_box.max_x - bounding_box.min_x)//step + 1) * \
+                        ((bounding_box.max_y - bounding_box.min_y)//step + 1) * \
+                        ((bounding_box.max_z - bounding_box.min_z)//step + 1)
 
     point_index = 0
     show_progress('potential grid calculation: ', 80, float(point_index)/float(total_point_count))
@@ -708,7 +708,7 @@ def write_units_csv(units: list, results_folder: str, pdb_file: str):
 
 
 def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: dict) -> dict:
-    k = 10.0
+    k = 1.0 / 10.0
 
     forces = dict()
     ligand_atom_count = float(len(ligand_atoms))
@@ -744,7 +744,7 @@ def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: dict) 
             # calculate lennard energy
             if distance < ligand_atom_radius * 2.0:
                 # calculate the force according http://phys.ubbcluj.ro/~tbeu/MD/C2_for.pdf 2.5
-                lennard_force_module = 48.0 * ligand_atom_edep /distance**2 * (ligand_atom_A/distance**12 - 0.5 * ligand_atom_B/distance**6)
+                lennard_force_module = 48.0 * ligand_atom_edep /distance**2 * ((ligand_atom_A/distance)**12 - 0.5 * (ligand_atom_B/distance)**6)
                 force = [force_direction[0] * lennard_force_module,
                          force_direction[1] * lennard_force_module,
                          force_direction[2] * lennard_force_module]
@@ -761,6 +761,26 @@ def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: dict) 
     show_progress('calculating forces: ', 40, 1.0)
 
     return forces
+
+
+def calculate_momentum(forces: dict, ligand: Residue) -> list:
+    center_of_mass = get_center_of_mass(ligand)
+    ligand_mass = sum([a.mass for a in ligand.get_atoms()])
+    total_momentum = [0.0, 0.0, 0.0]
+
+    progress = 0.0
+    show_progress('calculating momentum: ', 40, progress)
+    for atom_name in forces:
+        atom_position, force = forces[atom_name]
+        radius = numpy.subtract(atom_position, center_of_mass)
+        momentum = numpy.cross(radius, force)
+        total_momentum = numpy.add(total_momentum, momentum)
+
+        progress += 1.0 / len(forces)
+        show_progress('calculating momentum: ', 40, progress)
+    show_progress('calculating momentum: ', 40, 1.0)
+
+    return total_momentum
 
 
 def save_forces_to_file(forces: dict, results_folder: str, pdb_file: str):
@@ -806,6 +826,7 @@ if __name__ == '__main__':
 
 
     accumulated_forces = dict()
+    momenta = dict()
 
     for root, dirs, filenames in os.walk(input_folder):
         file_count = float(len(filenames))
@@ -828,18 +849,21 @@ if __name__ == '__main__':
             bounding_box = get_bounding_box(neighbour_atoms)
 
             forces = calculate_forces(ligand_atoms, neighbour_atoms, residues)
-            save_forces_to_file(forces, results_folder, pdb_file)
+            # save_forces_to_file(forces, results_folder, pdb_file)
+            momentum = calculate_momentum(forces, ligand)
+            print(f'momentum = {momentum}')
+            momenta[pdb_file] = momentum
 
-            accumulated_force = calculate_accumulated_force(forces)
-            print(f'accumulated force = {forces}')
-            accumulated_forces[pdb_file] = accumulated_force
+            # accumulated_force = calculate_accumulated_force(forces)
+            # print(f'accumulated force = {forces}')
+            # accumulated_forces[pdb_file] = accumulated_force
 
-            grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues, ligand_atoms)
-            print('grid coordinates calculated')
-            print(f'grid length: {len(grid_coordinates)}')
-
-            active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms, residues, results_folder, pdb_file, res_f_p=[ligand.get_resname(), 'HEM'])
-            save_active_site_to_file(active_site_points, results_folder, pdb_file)
+            # grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues, ligand_atoms)
+            # print('grid coordinates calculated')
+            # print(f'grid length: {len(grid_coordinates)}')
+            #
+            # active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms, residues, results_folder, pdb_file, res_f_p=[ligand.get_resname(), 'HEM'])
+            # save_active_site_to_file(active_site_points, results_folder, pdb_file)
 
             file_index += 1.0 / file_count
 
@@ -848,6 +872,13 @@ if __name__ == '__main__':
         for pdb in accumulated_forces:
             file.write(f'{pdb},{get_length(accumulated_forces[pdb])}\n')
         print('accumulated forces saved')
+
+    with open(os.path.join(results_folder, 'momenta.csv'), 'w') as file:
+        file.write('pdb,x,y,z,length\n')
+        for pdb in momenta:
+            momentum = momenta[pdb]
+            file.write(f'{pdb},{momentum[0]},{momentum[1]},{momentum[2]},{get_length(momentum)}\n')
+        print('momenta saved')
 
 
     class NeighbourSelect(Select):
