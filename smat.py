@@ -1,4 +1,4 @@
-from math import sqrt
+from math import sqrt, isnan
 import numpy
 from sys import stdout, argv
 from Bio import pairwise2
@@ -606,7 +606,7 @@ def calculate_potential(point: list, atoms: list, residues: dict, results_folder
         residue_name = atom.get_parent().get_resname()
         atom_description = residues[residue_name].get_atom(atom.get_name())
 
-        # fill the coords of local Atom class
+        # fill the coords of local - class
         residues[residue_name].get_atom(atom.get_name()).x = atom.get_coord()[0]
         residues[residue_name].get_atom(atom.get_name()).y = atom.get_coord()[1]
         residues[residue_name].get_atom(atom.get_name()).z = atom.get_coord()[2]
@@ -653,10 +653,13 @@ def construct_active_site_in_potentials_form(grid_coordinates: list, protein_ato
     for point in grid_coordinates:
         protein_coulomb_potential, protein_lennard_jones_energy = calculate_potential(point, protein_atoms, residues, results_folder, pdb_file, res_f_p)
         ligand_coulomb_potential, ligand_lennard_jones_energy = calculate_potential(point, ligand_atoms, residues, results_folder, pdb_file)
-        if ligand_lennard_jones_energy != 0 and ligand_lennard_jones_energy < 10.0:
-            active_site_points.append(
-                {'coordinates': point, 'protein_coulomb': protein_coulomb_potential, f'protein_lennard_jones': protein_lennard_jones_energy,
-                 'ligand_coulomb': ligand_coulomb_potential, 'ligand_lennard_jones': ligand_lennard_jones_energy})
+        if not isnan(protein_lennard_jones_energy):
+            if ligand_lennard_jones_energy != 0 and ligand_lennard_jones_energy < 10.0:
+                active_site_points.append(
+                    {'coordinates': point, 'protein_coulomb': protein_coulomb_potential, f'protein_lennard_jones': protein_lennard_jones_energy,
+                     'ligand_coulomb': ligand_coulomb_potential, 'ligand_lennard_jones': ligand_lennard_jones_energy})
+        else:
+            print(point)
     print('potentials calculated')
 
     return active_site_points
@@ -704,7 +707,7 @@ def write_units_csv(units: list, results_folder: str, pdb_file: str):
         file.close()
 
 
-def calculate_coulomb_forces(ligand_atoms: list, neighbour_atoms: list, residues: dict) -> dict:
+def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: dict) -> dict:
     k = 10.0
 
     forces = dict()
@@ -713,8 +716,14 @@ def calculate_coulomb_forces(ligand_atoms: list, neighbour_atoms: list, residues
     for ligand_atom in ligand_atoms:
         show_progress('calculating forces: ', 40, progress)
         integral_force = [0, 0, 0]
+        integral_coulomb_force = [0, 0, 0]
+        integral_lennard_force = [0, 0, 0]
         # TODO: refactor
         ligand_atom_charge = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_charge()
+        ligand_atom_edep = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_edep()
+        ligand_atom_A = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_A()
+        ligand_atom_B = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_B()
+        ligand_atom_radius = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_radius()
         ligand_atom_position = ligand_atom.coord
         for protein_atom in neighbour_atoms:
             protein_atom_charge = residues[protein_atom.get_parent().get_resname()].get_atom(protein_atom.get_name()).get_charge()
@@ -722,14 +731,29 @@ def calculate_coulomb_forces(ligand_atoms: list, neighbour_atoms: list, residues
             position_delta = numpy.subtract(protein_atom_position, ligand_atom_position)
             distance = get_length(position_delta)
             force_direction = get_direction(ligand_atom_position, protein_atom_position)
-            force_module = k * ligand_atom_charge * protein_atom_charge / distance**2
-            force = [force_direction[0] * force_module,
-                     force_direction[1] * force_module,
-                     force_direction[2] * force_module]
-            integral_force = [integral_force[0] + force[0],
-                              integral_force[1] + force[1],
-                              integral_force[2] + force[2]]
 
+            # calculate coulomb energy
+            coulomb_force_module = k * ligand_atom_charge * protein_atom_charge / distance**2
+            coulomb_force = [force_direction[0] * coulomb_force_module,
+                             force_direction[1] * coulomb_force_module,
+                             force_direction[2] * coulomb_force_module]
+            integral_coulomb_force = [integral_coulomb_force[0] + coulomb_force[0],
+                                      integral_coulomb_force[1] + coulomb_force[1],
+                                      integral_coulomb_force[2] + coulomb_force[2]]
+
+            # calculate lennard energy
+            if distance < ligand_atom_radius * 2.0:
+                # calculate the force according http://phys.ubbcluj.ro/~tbeu/MD/C2_for.pdf 2.5
+                lennard_force_module = 48.0 * ligand_atom_edep /distance**2 * (ligand_atom_A/distance**12 - 0.5 * ligand_atom_B/distance**6)
+                force = [force_direction[0] * lennard_force_module,
+                         force_direction[1] * lennard_force_module,
+                         force_direction[2] * lennard_force_module]
+                integral_lennard_force = [integral_lennard_force[0] + force[0],
+                                          integral_lennard_force[1] + force[1],
+                                          integral_lennard_force[2] + force[2]]
+
+            integral_force = [integral_coulomb_force[0]+integral_lennard_force[0], integral_coulomb_force[1]+
+                               integral_lennard_force[1], integral_coulomb_force[2]+integral_lennard_force[2]]
         # save to dictionary
         forces[ligand_atom.get_name()] = (ligand_atom_position, integral_force)
 
@@ -774,6 +798,12 @@ if __name__ == '__main__':
     results_folder = os.path.join(input_folder, f'results_{step}')
     if not os.path.exists(results_folder):
         os.makedirs(results_folder)
+    else:
+        for file in os.listdir(results_folder):
+            if not os.path.isdir(file):
+                file_path = os.path.join(results_folder, file)
+                os.unlink(file_path)
+
 
     accumulated_forces = dict()
 
@@ -797,11 +827,11 @@ if __name__ == '__main__':
             neighbour_atoms = get_neighbor_atoms(chain, ligand)
             bounding_box = get_bounding_box(neighbour_atoms)
 
-            forces = calculate_coulomb_forces(ligand_atoms, neighbour_atoms, residues)
+            forces = calculate_forces(ligand_atoms, neighbour_atoms, residues)
             save_forces_to_file(forces, results_folder, pdb_file)
 
             accumulated_force = calculate_accumulated_force(forces)
-            print(f'accumulated force = {accumulated_force}')
+            print(f'accumulated force = {forces}')
             accumulated_forces[pdb_file] = accumulated_force
 
             grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues, ligand_atoms)
