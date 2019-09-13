@@ -1,4 +1,4 @@
-from math import sqrt
+from math import sqrt, isnan
 import numpy
 from sys import stdout, argv
 from Bio import pairwise2
@@ -606,7 +606,7 @@ def calculate_potential(point: list, atoms: list, residues: dict, results_folder
         residue_name = atom.get_parent().get_resname()
         atom_description = residues[residue_name].get_atom(atom.get_name())
 
-        # fill the coords of local Atom class
+        # fill the coords of local - class
         residues[residue_name].get_atom(atom.get_name()).x = atom.get_coord()[0]
         residues[residue_name].get_atom(atom.get_name()).y = atom.get_coord()[1]
         residues[residue_name].get_atom(atom.get_name()).z = atom.get_coord()[2]
@@ -653,10 +653,13 @@ def construct_active_site_in_potentials_form(grid_coordinates: list, protein_ato
     for point in grid_coordinates:
         protein_coulomb_potential, protein_lennard_jones_energy = calculate_potential(point, protein_atoms, residues, results_folder, pdb_file, res_f_p)
         ligand_coulomb_potential, ligand_lennard_jones_energy = calculate_potential(point, ligand_atoms, residues, results_folder, pdb_file)
-        if ligand_lennard_jones_energy != 0 and ligand_lennard_jones_energy < 10.0:
-            active_site_points.append(
-                {'coordinates': point, 'protein_coulomb': protein_coulomb_potential, f'protein_lennard_jones': protein_lennard_jones_energy,
-                 'ligand_coulomb': ligand_coulomb_potential, 'ligand_lennard_jones': ligand_lennard_jones_energy})
+        if not isnan(protein_lennard_jones_energy):
+            if ligand_lennard_jones_energy != 0 and ligand_lennard_jones_energy < 10.0:
+                active_site_points.append(
+                    {'coordinates': point, 'protein_coulomb': protein_coulomb_potential, f'protein_lennard_jones': protein_lennard_jones_energy,
+                     'ligand_coulomb': ligand_coulomb_potential, 'ligand_lennard_jones': ligand_lennard_jones_energy})
+        else:
+            print(point)
     print('potentials calculated')
 
     return active_site_points
@@ -795,6 +798,12 @@ if __name__ == '__main__':
     results_folder = os.path.join(input_folder, f'results_{step}')
     if not os.path.exists(results_folder):
         os.makedirs(results_folder)
+    else:
+        for file in os.listdir(results_folder):
+            if not os.path.isdir(file):
+                file_path = os.path.join(results_folder, file)
+                os.unlink(file_path)
+
 
     accumulated_forces = dict()
 
