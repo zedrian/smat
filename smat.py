@@ -732,7 +732,7 @@ def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: dict, 
             force_direction = get_direction(ligand_atom_position, protein_atom_position)
 
             # calculate coulomb force
-            coulomb_force_module = ligand_atom_charge * protein_atom_charge / 4 * pi * dielectric_const * distance**2
+            coulomb_force_module = (ligand_atom_charge * protein_atom_charge) / (4 * pi * dielectric_const * distance**2)
             lennard_force_module = 0.0
             if distance < ligand_atom_radius * 4.0:
                 # calculate the force according https://www.ks.uiuc.edu/Training/Workshop/SanFrancisco/lectures/Wednesday-ForceFields.pdf page 14
