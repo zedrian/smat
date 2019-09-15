@@ -707,8 +707,7 @@ def write_units_csv(units: list, results_folder: str, pdb_file: str):
         file.close()
 
 
-def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: dict) -> dict:
-    k = 1.0 / 10.0
+def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: dict, dielectric_const: float = 10.0) -> dict:
 
     forces = dict()
     ligand_atom_count = float(len(ligand_atoms))
@@ -721,39 +720,32 @@ def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: dict) 
         # TODO: refactor
         ligand_atom_charge = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_charge()
         ligand_atom_edep = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_edep()
-        ligand_atom_A = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_A()
-        ligand_atom_B = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_B()
         ligand_atom_radius = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_radius()
         ligand_atom_position = ligand_atom.coord
         for protein_atom in neighbour_atoms:
             protein_atom_charge = residues[protein_atom.get_parent().get_resname()].get_atom(protein_atom.get_name()).get_charge()
+            protein_atom_edep = residues[protein_atom.get_parent().get_resname()].get_atom(protein_atom.get_name()).get_edep()
+            protein_atom_radius = residues[protein_atom.get_parent().get_resname()].get_atom(protein_atom.get_name()).get_radius()
             protein_atom_position = protein_atom.coord
             position_delta = numpy.subtract(protein_atom_position, ligand_atom_position)
             distance = get_length(position_delta)
             force_direction = get_direction(ligand_atom_position, protein_atom_position)
 
-            # calculate coulomb energy
-            coulomb_force_module = k * ligand_atom_charge * protein_atom_charge / distance**2
-            coulomb_force = [force_direction[0] * coulomb_force_module,
-                             force_direction[1] * coulomb_force_module,
-                             force_direction[2] * coulomb_force_module]
-            integral_coulomb_force = [integral_coulomb_force[0] + coulomb_force[0],
-                                      integral_coulomb_force[1] + coulomb_force[1],
-                                      integral_coulomb_force[2] + coulomb_force[2]]
-
-            # calculate lennard energy
+            # calculate coulomb force
+            coulomb_force_module = ligand_atom_charge * protein_atom_charge / 4 * pi * dielectric_const * distance**2
+            lennard_force_module = 0.0
             if distance < ligand_atom_radius * 2.0:
-                # calculate the force according http://phys.ubbcluj.ro/~tbeu/MD/C2_for.pdf 2.5
-                lennard_force_module = 48.0 * ligand_atom_edep /distance**2 * ((ligand_atom_A/distance)**12 - 0.5 * (ligand_atom_B/distance)**6)
-                force = [force_direction[0] * lennard_force_module,
-                         force_direction[1] * lennard_force_module,
-                         force_direction[2] * lennard_force_module]
-                integral_lennard_force = [integral_lennard_force[0] + force[0],
-                                          integral_lennard_force[1] + force[1],
-                                          integral_lennard_force[2] + force[2]]
+                # calculate the force according https://www.ks.uiuc.edu/Training/Workshop/SanFrancisco/lectures/Wednesday-ForceFields.pdf page 14
+                lennard_force_module = sqrt(ligand_atom_edep*protein_atom_edep)*(((ligand_atom_radius+protein_atom_radius)/distance)**12 - 2*((ligand_atom_radius+protein_atom_radius)/distance)**6)
 
-            integral_force = [integral_coulomb_force[0]+integral_lennard_force[0], integral_coulomb_force[1]+
-                               integral_lennard_force[1], integral_coulomb_force[2]+integral_lennard_force[2]]
+            force_module = coulomb_force_module + lennard_force_module
+            force = [force_direction[0] * force_module,
+                             force_direction[1] * force_module,
+                             force_direction[2] * force_module]
+            integral_force = [integral_coulomb_force[0] + force[0],
+                              integral_coulomb_force[1] + force[1],
+                              integral_coulomb_force[2] + force[2]]
+
         # save to dictionary
         forces[ligand_atom.get_name()] = (ligand_atom_position, integral_force)
 
