@@ -1,9 +1,9 @@
 from pandas import read_csv
-from classes import ResidueDesc, AtomDesc
+from classes import ResidueDesc, AtomDesc, ResiduesDatabase
 import os
 
 
-def get_residues_description() -> dict:
+def get_residues_description() -> ResiduesDatabase:
     # get atom types description ones for all other functions if needed
     # some aa have 2 variants of protonation state
     # if 'res_f_p' (residues for print) are given it writes csv file for visualisation
@@ -11,10 +11,11 @@ def get_residues_description() -> dict:
     # get some data from csv table
     data = read_csv('Database/Atoms_properties.csv', header=0, delimiter=';')
 
-    # construct the final dict with proper data
-    # parsing the dictionary with lines
-    residues = dict()
-    def construct_resdesclist_from_prep(residues: dict, prepfile: str):
+    # initiate database class object
+    residues_database = ResiduesDatabase()
+
+    # construct ResiduDesc objects from the prep file
+    def construct_resdesclist_from_prep(residues_database: ResiduesDatabase, prepfile: str):
 
         # divide prep file on described residues per lines
         elements = dict()
@@ -86,6 +87,7 @@ def get_residues_description() -> dict:
                             else: # they don't
                                 atom_desc.charge = float(separate_charges[line - 8])
 
+                        # short the number of atom types with the common properties
                         atom_type = ''
                         for atom in range(0, len(data)):
                             # fill the properties for common atoms
@@ -116,10 +118,10 @@ def get_residues_description() -> dict:
                 else:
                     break
 
-            residues[res_desc.get_short_name()] = res_desc
+            residues_database.add_residue(short_name=res_desc.get_short_name(), residue=res_desc)
 
-
-    def construct_resdesclist_from_lib(residues: dict):
+    # construct ResiduDesc objects from the libraries
+    def construct_resdesclist_from_lib(residues_database: ResiduesDatabase):
         libdir = 'Database/lib'
         for root, dirs, filenames in os.walk(libdir):
             for file in filenames:
@@ -136,6 +138,7 @@ def get_residues_description() -> dict:
                     line_elements = [x.strip('\"') for x in line.split(' ')[1:]]
                     atom_desc = AtomDesc(fullname=line_elements[0], type=line_elements[1], parent_name=res_desc.get_short_name(), charge=line_elements[7])
 
+                    # short the number of atom types with the common properties
                     atom_type = ''
                     for atom in range(0, len(data)):
                         # fill the properties for common atoms
@@ -163,14 +166,16 @@ def get_residues_description() -> dict:
 
                     res_desc.atoms.append(atom_desc)
 
-                residues[res_desc.get_short_name()] = res_desc
+                residues_database.add_residue(short_name=res_desc.get_short_name(), residue=res_desc)
 
     prepdir = 'Database/prep/'
     for root, dirs, filenames in os.walk(prepdir):
         for prepfile in filenames:
-            construct_resdesclist_from_prep(residues, os.path.join(root, prepfile))
-    construct_resdesclist_from_lib(residues)
+            construct_resdesclist_from_prep(residues_database, os.path.join(root, prepfile))
+    construct_resdesclist_from_lib(residues_database)
 
-    residues['HIS'] = residues['HIE']
+    # copy the properties of HIS to another form of the HIS
+    residues_database.add_residue(short_name='HIE', residue=residues_database.get_residue('HIS'))
+    # residues_database.add_residue(short_name='HIP', residue=residues_database.get_residue('HIS'))
 
-    return residues
+    return residues_database

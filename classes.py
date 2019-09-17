@@ -89,6 +89,7 @@ class ResidueDesc:
         self.short_name = short_name
         self.atoms = atoms
         self.amino_acid_letter = if_amino_acid(self.short_name)
+        self.cofactor = if_cofactor(self.short_name)
 
     def __repr__(self):
         return f'Residue name: {self.long_name}\n' + \
@@ -115,7 +116,11 @@ class ResidueDesc:
     def get_amino_acid_letter(self):
         return self.amino_acid_letter
 
+    def if_cofactor(self):
+        return self.cofactor
 
+
+# define if the residue is amino acid
 def if_amino_acid(short_name: str) -> str:
     amino_acids ={'ALA': 'A',
                   'ARG': 'R',
@@ -148,3 +153,42 @@ def if_amino_acid(short_name: str) -> str:
             return None
     else:
         return None
+
+
+# define if the residue is cofactor
+def if_cofactor(short_name: str) -> bool:
+    cofactors = ['GDP', 'GTP', 'ADP', 'ATP', 'FMN', 'FAD', 'NAD', 'HEM']
+
+    if short_name in cofactors:
+        return True
+    else:
+        return False
+
+
+class ResiduesDatabase:
+    def __init__(self, residues: dict = {}):
+        self.residues = residues
+
+    def add_residue(self, short_name: str, residue: ResidueDesc):
+        self.residues[short_name] = residue
+
+    def get_residue(self, residue_short_name: str) -> ResidueDesc:
+        return self.residues[residue_short_name]
+
+    def get_amino_acids(self) -> list:
+        amino_acids = list()
+
+        for key, value in self.residues:
+            if self.residues[key].get_amino_acid_letter() is not None:
+                amino_acids.append(key)
+
+        return amino_acids
+
+    def get_cofactors(self) -> list:
+        cofactors = list()
+
+        for key, value in self.residues:
+            if self.residues[key].if_cofactor:
+                cofactors.append(key)
+
+        return cofactors

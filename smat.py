@@ -10,7 +10,7 @@ from Bio.PDB.Chain import Chain
 from Bio.PDB.Structure import Structure
 from Bio.SubsMat.MatrixInfo import blosum62
 import os
-from classes import BoundingBox
+from classes import BoundingBox, ResiduesDatabase
 from database_parser import get_residues_description
 
 
@@ -30,15 +30,15 @@ def show_progress(label, width, percentage):
 
 
 # todo take this data from constructed database
-aa_residue_names = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS', 'MET', 'PHE',
-                    'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
-cofactor_residue_names = ['GDP', 'GTP', 'ADP', 'ATP', 'FMN', 'FAD', 'NAD', 'HEM']
-aa_residue_letters = ['A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y',
-                      'V']
-aa_residues = dict()
+# aa_residue_names = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS', 'MET', 'PHE',
+                    # 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
+# cofactor_residue_names = ['GDP', 'GTP', 'ADP', 'ATP', 'FMN', 'FAD', 'NAD', 'HEM']
+# aa_residue_letters = ['A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y',
+#                       'V']
+# aa_residues = dict()
 
 
-def get_chain(structure: Structure) -> Chain:
+def get_chain(structure: Structure, residues: ResiduesDatabase) -> Chain:
     chains = [c for c in structure.get_chains()]
 
     # fast return if structure contains a single chain
@@ -49,7 +49,7 @@ def get_chain(structure: Structure) -> Chain:
 
     def chain_contains_ligands(chain: Chain) -> bool:
         for residue in chain.get_residues():
-            if not residue.get_resname() in aa_residue_names and not residue.get_resname() in cofactor_residue_names:
+            if not residue.get_resname() in residues.get_amino_acids() and not residue.get_resname() in residues.get_cofactors():
                 atoms = [a for a in residue.get_atoms() if not a.get_name().startswith('H')]
                 if len(atoms) >= 6:
                     return True
@@ -60,9 +60,9 @@ def get_chain(structure: Structure) -> Chain:
     def get_shortened_sequence(chain: Chain) -> str:
         line = ''
         for residue in chain.get_residues():
-            if not residue.get_resname() in aa_residues.keys():
+            if residues.get_residue(residue.get_resname()).get_amino_acid_letter() is None:
                 continue
-            line += aa_residues[residue.get_resname()]
+            line += residues.get_residue(residue.get_resname()).get_amino_acid_letter()
         return line
     shortened_chain_sequences = list(map(get_shortened_sequence, chains_with_ligands))
 
@@ -99,8 +99,8 @@ def get_chain(structure: Structure) -> Chain:
     return longest_chain
 
 
-def is_ligand(residue: Residue) -> bool:
-    if not residue.get_resname() in aa_residue_names and not residue.get_resname() in cofactor_residue_names:
+def is_ligand(residue: Residue, residues: ResiduesDatabase) -> bool:
+    if not residue.get_resname() in residues.get_amino_acids() and not residue.get_resname() in residues.get_cofactors():
         atoms = [a for a in residue.get_atoms() if not a.get_name().startswith('H')]
         if len(atoms) >= 6:
             return True
@@ -144,7 +144,7 @@ def get_ligand(chain: Chain) -> Residue:
 
     # find closest ligand
     for residue in chain.get_residues():
-        if not is_ligand(residue):
+        if not is_ligand(residue, residues):
             continue
 
         ligand_center_of_mass = get_center_of_mass(residue)
@@ -511,13 +511,15 @@ def calculate_accumulated_force(forces: dict) -> list:
 
 
 if __name__ == '__main__':
-    # prepare AA residues dictionary
-    for i in range(len(aa_residue_names)):
-        aa_residues[aa_residue_names[i]] = aa_residue_letters[i]
 
     # load residues database
     residues = get_residues_description()
     print('residues info constructed')
+
+    # # prepare AA residues dictionary
+    # for i in range(len(aa_residue_names)):
+    #     aa_residues[aa_residue_names[i]] = aa_residue_letters[i]
+
 
     step = float(argv[1])
     input_folder = argv[2]
@@ -549,7 +551,7 @@ if __name__ == '__main__':
 
             parser = PDBParser()
             structure = parser.get_structure('pdb', file_name)
-            chain = get_chain(structure)
+            chain = get_chain(structure, residues)
             ligand = get_ligand(chain)
             ligand_atoms = list(ligand.get_atoms())
             neighbour_atoms = get_neighbor_atoms(chain, ligand)
