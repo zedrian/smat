@@ -617,7 +617,7 @@ def calculate_potential(point: list, atoms: list, residues: dict, results_folder
         distance = get_length(numpy.subtract(point, atom.get_coord()))
 
         dielectric_const = 10
-        coulomb_potential = charge / 4 * pi * dielectric_const * distance
+        coulomb_potential = charge / (4 * pi * dielectric_const * distance)
         total_coulomb_potential += coulomb_potential
 
         # check whether we should calculate Lennard-Jones potential
