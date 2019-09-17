@@ -615,16 +615,18 @@ def calculate_potential(point: list, atoms: list, residues: dict, results_folder
         # calculate Coulomb potential
         charge = atom_description.get_charge()
         distance = get_length(numpy.subtract(point, atom.get_coord()))
-        k = 10.0
-        coulomb_potential = k * charge / distance**2
+
+        dielectric_const = 10
+        coulomb_potential = charge / 4 * pi * dielectric_const * distance
         total_coulomb_potential += coulomb_potential
 
         # check whether we should calculate Lennard-Jones potential
-        sigma = (atom_description.get_radius() + 2.35) / 2  # 2.35 is VdW-radius for Iodine (the greatest possible one)
+        sigma = atom_description.get_radius() * 2
         if distance <= sigma * 2.5:  # 2.5 sigma is critical distance
             epsilon = atom_description.get_edep()
 
             lennard_jones_energy = 4 * epsilon * ((sigma / distance) ** 12 - (sigma / distance) ** 6)
+
             total_lennard_jones_energy += lennard_jones_energy
 
         atom_index += 1
@@ -846,16 +848,16 @@ if __name__ == '__main__':
             print(f'momentum = {momentum}')
             momenta[pdb_file] = momentum
 
-            # accumulated_force = calculate_accumulated_force(forces)
-            # print(f'accumulated force = {forces}')
-            # accumulated_forces[pdb_file] = accumulated_force
+            accumulated_force = calculate_accumulated_force(forces)
+            print(f'accumulated force = {forces}')
+            accumulated_forces[pdb_file] = accumulated_force
 
-            # grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues, ligand_atoms)
-            # print('grid coordinates calculated')
-            # print(f'grid length: {len(grid_coordinates)}')
-            #
-            # active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms, residues, results_folder, pdb_file, res_f_p=[ligand.get_resname(), 'HEM'])
-            # save_active_site_to_file(active_site_points, results_folder, pdb_file)
+            grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues, ligand_atoms)
+            print('grid coordinates calculated')
+            print(f'grid length: {len(grid_coordinates)}')
+
+            active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms, residues, results_folder, pdb_file, res_f_p=[ligand.get_resname(), 'HEM'])
+            save_active_site_to_file(active_site_points, results_folder, pdb_file)
 
             file_index += 1.0 / file_count
 
