@@ -3,6 +3,8 @@ from classes import ResidueDesc, AtomDesc, ResiduesDatabase
 import os
 
 
+# construct database from the parametric files
+# todo make DB file ones to speed up the work and only fill the residues with atoms
 def get_residues_description() -> ResiduesDatabase:
     # get atom types description ones for all other functions if needed
     # some aa have 2 variants of protonation state

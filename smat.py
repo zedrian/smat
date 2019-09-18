@@ -1,17 +1,13 @@
 from math import sqrt, isnan, pi
 import numpy
 from sys import stdout, argv
-from Bio import pairwise2
 from Bio.PDB import *
-from Bio.PDB import Residue
-from Bio.PDB import NeighborSearch
 from Bio.PDB.Atom import Atom
-from Bio.PDB.Chain import Chain
-from Bio.PDB.Structure import Structure
-from Bio.SubsMat.MatrixInfo import blosum62
 import os
 from classes import BoundingBox, ResiduesDatabase
 from database_parser import get_residues_description
+from pdb_parser import *
+from files_manager import parse_input_command, generate_output_folder, write_forces, write_momenta
 
 
 # smart progress bar
@@ -27,181 +23,6 @@ def show_progress(label, width, percentage):
     if percentage == 1.0:
         print('')
     stdout.flush()
-
-
-# todo take this data from constructed database
-# aa_residue_names = ['ALA', 'ARG', 'ASN', 'ASP', 'CYS', 'GLN', 'GLU', 'GLY', 'HIS', 'ILE', 'LEU', 'LYS', 'MET', 'PHE',
-                    # 'PRO', 'SER', 'THR', 'TRP', 'TYR', 'VAL']
-# cofactor_residue_names = ['GDP', 'GTP', 'ADP', 'ATP', 'FMN', 'FAD', 'NAD', 'HEM']
-# aa_residue_letters = ['A', 'R', 'N', 'D', 'C', 'Q', 'E', 'G', 'H', 'I', 'L', 'K', 'M', 'F', 'P', 'S', 'T', 'W', 'Y',
-#                       'V']
-# aa_residues = dict()
-
-
-def get_chain(structure: Structure, residues: ResiduesDatabase) -> Chain:
-    chains = [c for c in structure.get_chains()]
-
-    # fast return if structure contains a single chain
-    if len(chains) == 1:
-        print('structure contains a single chain')
-        return chains[0]
-    print(f'structure contains {len(chains)} chains')
-
-    def chain_contains_ligands(chain: Chain) -> bool:
-        for residue in chain.get_residues():
-            if not residue.get_resname() in residues.get_amino_acids() and not residue.get_resname() in residues.get_cofactors():
-                atoms = [a for a in residue.get_atoms() if not a.get_name().startswith('H')]
-                if len(atoms) >= 6:
-                    return True
-        return False
-    chains_with_ligands = list(filter(chain_contains_ligands, chains))
-    print(f'chains with ligands: {len(chains_with_ligands)}')
-
-    def get_shortened_sequence(chain: Chain) -> str:
-        line = ''
-        for residue in chain.get_residues():
-            if residues.get_residue(residue.get_resname()).get_amino_acid_letter() is None:
-                continue
-            line += residues.get_residue(residue.get_resname()).get_amino_acid_letter()
-        return line
-    shortened_chain_sequences = list(map(get_shortened_sequence, chains_with_ligands))
-
-    # - check all pair alignments
-    # - if at least one pair has equality score less than threshold,
-    #   ask user for which chain to choose (by its letter)
-    # - otherwise (that means that all chains are similar) choose longest one
-
-    equality_threshold = 0.95
-
-    for first_index in range(len(shortened_chain_sequences)):
-        for second_index in range(first_index+1, len(shortened_chain_sequences)):
-            first_sequence = shortened_chain_sequences[first_index]
-            second_sequence = shortened_chain_sequences[second_index]
-            alignments = pairwise2.align.globalds(first_sequence, second_sequence, blosum62, -10, -0.5)
-            first_aligned, second_aligned, score, begin, end = alignments[0]
-            if score < equality_threshold:
-                print(f'two different sequences found (score={score})')
-                print('please enter a letter of chain to work with: ', end='')
-                chain_letter = input()[0]
-                chain_index = int(chain_letter) - int('A')
-                return chains[chain_index]
-
-    # as we are here, then no different chains were found -
-    # so choose longest one
-    def get_chain_length(chain: Chain) -> int:
-        sequence = get_shortened_sequence(chain)
-        return len(sequence)
-    sorted_chains = sorted(chains_with_ligands, key=get_chain_length, reverse=True)
-
-    longest_chain = sorted_chains[0]
-    print(f'chain selected: {longest_chain.get_id()}')
-
-    return longest_chain
-
-
-def is_ligand(residue: Residue, residues: ResiduesDatabase) -> bool:
-    if not residue.get_resname() in residues.get_amino_acids() and not residue.get_resname() in residues.get_cofactors():
-        atoms = [a for a in residue.get_atoms() if not a.get_name().startswith('H')]
-        if len(atoms) >= 6:
-            return True
-
-
-def get_center_of_mass(residue: Residue) -> list:
-    center_of_mass = None
-    mass = 0.0
-    for atom in residue.get_atoms():
-        if center_of_mass is None:
-            center_of_mass = atom.coord * atom.mass
-        else:
-            center_of_mass = center_of_mass + atom.coord * atom.mass
-        mass = mass + atom.mass
-    center_of_mass = center_of_mass / mass
-
-    return [center_of_mass[0], center_of_mass[1], center_of_mass[2]]
-
-
-def get_ligand(chain: Chain) -> Residue:
-    # - go through residues that are not AA and cofactors and are greater than of 6 atoms (not including H)
-    # - all of them are candidates for being ligands
-    # - find center of masses for the whole chain
-    # - get candidate that is nearest to the center
-
-    # compute chain center of mass at first
-    chain_center_of_mass = None
-    chain_mass = 0.0
-    for residue in chain.get_residues():
-        for atom in residue.get_atoms():
-            if chain_center_of_mass is None:
-                chain_center_of_mass = atom.coord * atom.mass
-            else:
-                chain_center_of_mass = chain_center_of_mass + atom.coord * atom.mass
-            chain_mass = chain_mass + atom.mass
-    chain_center_of_mass = chain_center_of_mass / chain_mass
-    chain_center_of_mass = [chain_center_of_mass[0], chain_center_of_mass[1], chain_center_of_mass[2]]
-
-    closest_ligand = None
-    closest_ligand_to_center_of_mass_squared_distance = 1e30 # just a big number
-
-    # find closest ligand
-    for residue in chain.get_residues():
-        if not is_ligand(residue, residues):
-            continue
-
-        ligand_center_of_mass = get_center_of_mass(residue)
-
-        # measure distance to chain center of mass
-        delta_position = numpy.subtract(ligand_center_of_mass, chain_center_of_mass)
-        squared_distance = delta_position[0]**2 + delta_position[1]**2 + delta_position[2]**2
-
-        # compare with current best result
-        if squared_distance < closest_ligand_to_center_of_mass_squared_distance:
-            closest_ligand = residue
-            closest_ligand_to_center_of_mass_squared_distance = squared_distance
-
-    # show result
-    print(f'ligand selected: {closest_ligand.get_resname()} (distance to chain CoM: {sqrt(closest_ligand_to_center_of_mass_squared_distance)})')
-
-    return closest_ligand
-
-
-def get_neighbor_atoms(chain: Chain, ligand: Residue) -> list:
-    # use biopython neighboursearch to get list of AA atoms that close enough to ligand's atoms (using 10 angstroms)
-    # - get list of all chain's atoms except ligand's atoms
-    # - for each ligand's atom run neighbor search to find neighbors
-    # - add that neighbors to result list of neighbors (exclude duplicates)
-
-    # collect chain atoms
-    chain_atoms = list()
-    for residue in chain.get_residues():
-        # do not count atoms from ligand itself
-        if residue.get_resname() == ligand.get_resname():
-            continue
-
-        # do not count atoms from ligands
-        # TODO: refactor
-        if residue.get_resname() not in aa_residue_names and residue.get_resname() not in cofactor_residue_names:
-            continue
-
-        for atom in residue.get_atoms():
-            chain_atoms.append(atom)
-
-    neighbour_atoms = list()
-    for atom in ligand.get_atoms():
-        search = NeighborSearch(chain_atoms)
-        current_neighbours = search.search(atom.coord, 10.0)
-        for neighbour in current_neighbours:
-            if neighbour not in neighbour_atoms:
-                neighbour_atoms.append(neighbour)
-    return neighbour_atoms
-
-
-def get_bounding_box(atoms: list) -> BoundingBox:
-    box = BoundingBox()
-
-    for atom in atoms:
-        box.store_point(atom.coord[0], atom.coord[1], atom.coord[2])
-
-    return box
 
 
 def get_van_der_walls_radius(atom: Atom, residues: dict) -> float:
@@ -392,36 +213,6 @@ def save_active_site_to_file(active_site_points: list, results_folder: str, file
         file.close()
 
 
-def write_units_csv(units: list, results_folder: str, pdb_file: str):
-    with open(os.path.join(results_folder, f'{pdb_file[:-4]}_units.csv'), 'w') as file:
-        file.write('x,y,z,radius,rgb,atom_name,atom_type,residue_name\n')
-        for unit in units:
-            for atom in unit.get_atoms():
-                if atom.get_x() == atom.get_y() == atom.get_z() == 0.0:
-                    continue
-                else:
-                    rgb = '000000'
-                    if atom.get_type()[0].upper() == 'C' and atom.get_type() != 'Cl':
-                        rgb = 'FFFFCC'
-                    elif atom.get_type()[0].upper() == 'N':
-                        rgb = '3366FF'
-                    elif atom.get_type()[0].upper() == 'O':
-                        rgb = 'FF3300'
-                    elif atom.get_type()[0].upper() == 'H':
-                        rgb = 'FFССFF'
-                    elif atom.get_type()[0].upper() == 'S':
-                        rgb = 'FFFF00'
-                    elif atom.get_type() == 'Cl':
-                        rgb = '33FF33'
-                    elif atom.get_type() == 'Fe':
-                        rgb = '996600'
-                    file.write(
-                        f'{atom.get_x()},{atom.get_y()},{atom.get_z()},{atom.get_radius()/3},{rgb},{atom.get_fullname()},'
-                        f'{atom.get_type()},{atom.get_parent_name()}\n'
-                    )
-        file.close()
-
-
 def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: dict, dielectric_const: float = 10.0) -> dict:
 
     forces = dict()
@@ -490,16 +281,6 @@ def calculate_momentum(forces: dict, ligand: Residue) -> list:
     return total_momentum
 
 
-def save_forces_to_file(forces: dict, results_folder: str, pdb_file: str):
-    file_name = os.path.join(results_folder, f'{pdb_file[:-4]}_forces.csv')
-    with open(file_name, 'w') as file:
-        file.write('atom_name,x,y,z,force_x,force_y,force_z\n')
-        for atom in forces:
-            position, force = forces[atom]
-            file.write(f'{atom},{position[0]},{position[1]},{position[2]},{force[0]},{force[1]},{force[2]}\n')
-    print(f'forces saved to {file_name}')
-
-
 def calculate_accumulated_force(forces: dict) -> list:
     accumulated_force = [0, 0, 0]
     for atom in forces:
@@ -512,27 +293,16 @@ def calculate_accumulated_force(forces: dict) -> list:
 
 if __name__ == '__main__':
 
+    options, args = parse_input_command()
+
     # load residues database
     residues = get_residues_description()
     print('residues info constructed')
 
-    # # prepare AA residues dictionary
-    # for i in range(len(aa_residue_names)):
-    #     aa_residues[aa_residue_names[i]] = aa_residue_letters[i]
+    step = float(options['step'])
+    input_folder = options['folder']
 
-
-    step = float(argv[1])
-    input_folder = argv[2]
-
-    results_folder = os.path.join(input_folder, f'results_{step}')
-    if not os.path.exists(results_folder):
-        os.makedirs(results_folder)
-    else:
-        for file in os.listdir(results_folder):
-            if not os.path.isdir(file):
-                file_path = os.path.join(results_folder, file)
-                os.unlink(file_path)
-
+    results_folder = generate_output_folder(input_folder, step)
 
     accumulated_forces = dict()
     momenta = dict()
@@ -552,9 +322,9 @@ if __name__ == '__main__':
             parser = PDBParser()
             structure = parser.get_structure('pdb', file_name)
             chain = get_chain(structure, residues)
-            ligand = get_ligand(chain)
+            ligand = get_ligand(chain, residues)
             ligand_atoms = list(ligand.get_atoms())
-            neighbour_atoms = get_neighbor_atoms(chain, ligand)
+            neighbour_atoms = get_neighbor_atoms(chain, ligand, residues)
             bounding_box = get_bounding_box(neighbour_atoms)
 
             forces = calculate_forces(ligand_atoms, neighbour_atoms, residues)
@@ -576,19 +346,8 @@ if __name__ == '__main__':
 
             file_index += 1.0 / file_count
 
-    with open(os.path.join(results_folder, 'accumulated_forces.csv'), 'w') as file:
-        file.write('pdb,force\n')
-        for pdb in accumulated_forces:
-            file.write(f'{pdb},{get_length(accumulated_forces[pdb])}\n')
-        print('accumulated forces saved')
-
-    with open(os.path.join(results_folder, 'momenta.csv'), 'w') as file:
-        file.write('pdb,x,y,z,length\n')
-        for pdb in momenta:
-            momentum = momenta[pdb]
-            file.write(f'{pdb},{momentum[0]},{momentum[1]},{momentum[2]},{get_length(momentum)}\n')
-        print('momenta saved')
-
+    write_forces(results_folder, accumulated_forces)
+    write_momenta(results_folder, momenta)
 
     class NeighbourSelect(Select):
         def accept_atom(self, atom):
