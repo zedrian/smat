@@ -177,7 +177,7 @@ def get_residues_description() -> ResiduesDatabase:
     construct_resdesclist_from_lib(residues_database)
 
     # copy the properties of HIS to another form of the HIS
-    residues_database.add_residue(short_name='HIE', residue=residues_database.get_residue('HIS'))
+    residues_database.add_residue(short_name='HIS', residue=residues_database.get_residue('HIE'))
     # residues_database.add_residue(short_name='HIP', residue=residues_database.get_residue('HIS'))
 
     return residues_database

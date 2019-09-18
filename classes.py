@@ -147,7 +147,8 @@ def if_amino_acid(short_name: str) -> str:
                   'THR': 'T',
                   'TRP': 'W',
                   'TYR': 'Y',
-                  'VAL': 'V'}
+                  'VAL': 'V',
+                  'CYM': 'C'}
 
     if short_name != '':
         try:
@@ -181,7 +182,7 @@ class ResiduesDatabase:
     def get_amino_acids(self) -> list:
         amino_acids = list()
 
-        for key, value in self.residues:
+        for key in self.residues:
             if self.residues[key].get_amino_acid_letter() is not None:
                 amino_acids.append(key)
 
@@ -190,8 +191,8 @@ class ResiduesDatabase:
     def get_cofactors(self) -> list:
         cofactors = list()
 
-        for key, value in self.residues:
-            if self.residues[key].if_cofactor:
+        for key in self.residues:
+            if self.residues[key].cofactor:
                 cofactors.append(key)
 
         return cofactors

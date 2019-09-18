@@ -275,8 +275,8 @@ if __name__ == '__main__':
     print('residues database constructed')
 
     # get main variables from command line
-    step = float(options['step'])
-    input_folder = options['folder']
+    step = float(options.step)
+    input_folder = options.folder
 
     # generate output folder
     results_folder = generate_output_folder(input_folder, step)
@@ -308,7 +308,7 @@ if __name__ == '__main__':
             ligand_center_of_mass = get_center_of_mass(ligand)
 
             # write residues that need to be visualised to csv file
-            write_units_csv([ligand, options['units']], results_folder, pdb_file)
+            write_units_csv(ligand, options.units, results_folder, pdb_file)
 
             neighbour_atoms = get_neighbor_atoms(chain, ligand, residues)
             bounding_box = get_bounding_box(neighbour_atoms)
