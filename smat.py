@@ -7,7 +7,7 @@ import os
 from classes import BoundingBox, ResiduesDatabase
 from database_parser import get_residues_description
 from pdb_parser import *
-from files_manager import parse_input_command, generate_output_folder, write_forces, write_momenta
+from files_manager import *
 
 
 # smart progress bar
@@ -87,7 +87,6 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list, residue
 
 
 def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_box: BoundingBox, ligand_center_of_mass: list, residues: dict, ligand_atoms: list) -> list:
-    # todo it might be changed - check it!
     grid_coordinates = list()
 
     total_point_count = ((bounding_box.max_x - bounding_box.min_x)//step + 1) * \
@@ -125,7 +124,7 @@ def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_
     return grid_coordinates
 
 
-def calculate_potential(point: list, atoms: list, residues: dict, results_folder: str, pdb_file: str, res_f_p: list = None) -> (float, float):
+def calculate_potential(point: list, atoms: list, residues: dict) -> (float, float):
     # point is a list of coordinates like [x, y, z]
     # atoms is a list of Atom objects
     # residues is a dictionary with residue descriptions
@@ -168,27 +167,17 @@ def calculate_potential(point: list, atoms: list, residues: dict, results_folder
 
     show_progress('potential grid calculation: ', 80, 1.0)
 
-    # write csv file with units for visualisator if exist
-    if res_f_p:
-        units_to_write = list()
-        for res in res_f_p:
-            for unit in residues.keys():
-                if res == residues[unit].get_short_name():
-                    units_to_write.append(residues[unit])
-
-        write_units_csv(units_to_write, results_folder, pdb_file)
-
     return total_coulomb_potential, total_lennard_jones_energy
 
 
-def construct_active_site_in_potentials_form(grid_coordinates: list, protein_atoms: list, ligand_atoms: list, residues: dict, results_folder, pdb_file, res_f_p: list = None) -> list:
+def construct_active_site_in_potentials_form(grid_coordinates: list, protein_atoms: list, ligand_atoms: list, residues: ResiduesDatabase) -> list:
     # calculate indused potentials and Van Der Waals energy in each point of active center grid
 
     active_site_points = list()
 
     for point in grid_coordinates:
-        protein_coulomb_potential, protein_lennard_jones_energy = calculate_potential(point, protein_atoms, residues, results_folder, pdb_file, res_f_p)
-        ligand_coulomb_potential, ligand_lennard_jones_energy = calculate_potential(point, ligand_atoms, residues, results_folder, pdb_file)
+        protein_coulomb_potential, protein_lennard_jones_energy = calculate_potential(point, protein_atoms, residues)
+        ligand_coulomb_potential, ligand_lennard_jones_energy = calculate_potential(point, ligand_atoms, residues)
         if not isnan(protein_lennard_jones_energy):
             if ligand_lennard_jones_energy != 0 and ligand_lennard_jones_energy < 10.0:
                 active_site_points.append(
@@ -201,19 +190,7 @@ def construct_active_site_in_potentials_form(grid_coordinates: list, protein_ato
     return active_site_points
 
 
-def save_active_site_to_file(active_site_points: list, results_folder: str, file_name: str):
-    with open(os.path.join(results_folder, f'{file_name[:-4]}_potentials.csv'), 'w') as file:
-        file.write('x,y,z,protein_coulomb,protein_lennard_jones,ligand_coulomb,ligand_lennard_jones\n')
-        for point in active_site_points:
-            file.write(
-                f'{point["coordinates"][0]},{point["coordinates"][1]},{point["coordinates"][2]},'
-                f'{point["protein_coulomb"]},{point["protein_lennard_jones"]},'
-                f'{point["ligand_coulomb"]},{point["ligand_lennard_jones"]}'
-                '\n')
-        file.close()
-
-
-def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: dict, dielectric_const: float = 10.0) -> dict:
+def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: ResiduesDatabase, dielectric_const: float = 10.0) -> dict:
 
     forces = dict()
     ligand_atom_count = float(len(ligand_atoms))
@@ -224,10 +201,10 @@ def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: dict, 
         integral_coulomb_force = [0, 0, 0]
         integral_lennard_force = [0, 0, 0]
         # TODO: refactor
-        ligand_atom_charge = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_charge()
-        ligand_atom_edep = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_edep()
-        ligand_atom_radius = residues[ligand_atom.get_parent().get_resname()].get_atom(ligand_atom.get_name()).get_radius()
-        ligand_atom_position = ligand_atom.coord
+        ligand_atom_charge = ligand_atom.get_charge()
+        ligand_atom_edep = ligand_atom.get_edep()
+        ligand_atom_radius = ligand_atom.get_radius()
+        ligand_atom_position = ligand_atom.get_coords()
         for protein_atom in neighbour_atoms:
             protein_atom_charge = residues[protein_atom.get_parent().get_resname()].get_atom(protein_atom.get_name()).get_charge()
             protein_atom_edep = residues[protein_atom.get_parent().get_resname()].get_atom(protein_atom.get_name()).get_edep()
@@ -261,9 +238,7 @@ def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: dict, 
     return forces
 
 
-def calculate_momentum(forces: dict, ligand: Residue) -> list:
-    center_of_mass = get_center_of_mass(ligand)
-    ligand_mass = sum([a.mass for a in ligand.get_atoms()])
+def calculate_momentum(forces: dict, center_of_mass: list) -> list:
     total_momentum = [0.0, 0.0, 0.0]
 
     progress = 0.0
@@ -297,13 +272,16 @@ if __name__ == '__main__':
 
     # load residues database
     residues = get_residues_description()
-    print('residues info constructed')
+    print('residues database constructed')
 
+    # get main variables from command line
     step = float(options['step'])
     input_folder = options['folder']
 
+    # generate output folder
     results_folder = generate_output_folder(input_folder, step)
 
+    # construct final dictionaries
     accumulated_forces = dict()
     momenta = dict()
 
@@ -319,17 +297,25 @@ if __name__ == '__main__':
             print(pdb_file)
             file_name = os.path.join(root, pdb_file)
 
+            # get chain of the structure to work with
             parser = PDBParser()
             structure = parser.get_structure('pdb', file_name)
             chain = get_chain(structure, residues)
+
+            # get ligand and "transform" it to object of ResidueDesc class
             ligand = get_ligand(chain, residues)
-            ligand_atoms = list(ligand.get_atoms())
+            ligand_atoms = ligand.get_atoms()
+            ligand_center_of_mass = get_center_of_mass(ligand)
+
+            # write residues that need to be visualised to csv file
+            write_units_csv([ligand, options['units']], results_folder, pdb_file)
+
             neighbour_atoms = get_neighbor_atoms(chain, ligand, residues)
             bounding_box = get_bounding_box(neighbour_atoms)
 
             forces = calculate_forces(ligand_atoms, neighbour_atoms, residues)
             # save_forces_to_file(forces, results_folder, pdb_file)
-            momentum = calculate_momentum(forces, ligand)
+            momentum = calculate_momentum(forces, ligand_center_of_mass)
             print(f'momentum = {momentum}')
             momenta[pdb_file] = momentum
 
@@ -337,12 +323,12 @@ if __name__ == '__main__':
             print(f'accumulated force = {forces}')
             accumulated_forces[pdb_file] = accumulated_force
 
-            grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, get_center_of_mass(ligand), residues, ligand_atoms)
+            grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, ligand_center_of_mass, residues, ligand_atoms)
             print('grid coordinates calculated')
             print(f'grid length: {len(grid_coordinates)}')
 
-            active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms, residues, results_folder, pdb_file, res_f_p=[ligand.get_resname(), 'HEM'])
-            save_active_site_to_file(active_site_points, results_folder, pdb_file)
+            active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms, residues)
+            save_potentials_to_file(active_site_points, results_folder, pdb_file)
 
             file_index += 1.0 / file_count
 

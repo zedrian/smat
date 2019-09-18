@@ -3,7 +3,7 @@ from Bio.PDB import NeighborSearch, Residue
 from Bio.PDB.Chain import Chain
 from Bio.PDB.Structure import Structure
 from Bio.SubsMat.MatrixInfo import blosum62
-from classes import BoundingBox, ResiduesDatabase
+from classes import BoundingBox, ResiduesDatabase, ResidueDesc
 import numpy
 from math import sqrt
 
@@ -76,21 +76,21 @@ def is_ligand(residue: Residue, residues: ResiduesDatabase) -> bool:
             return True
 
 
-def get_center_of_mass(residue: Residue) -> list:
+def get_center_of_mass(residue: ResidueDesc) -> list:
     center_of_mass = None
     mass = 0.0
     for atom in residue.get_atoms():
         if center_of_mass is None:
-            center_of_mass = atom.coord * atom.mass
+            center_of_mass = atom.get_coords() * atom.get_mass()
         else:
-            center_of_mass = center_of_mass + atom.coord * atom.mass
-        mass = mass + atom.mass
+            center_of_mass = center_of_mass + atom.get_coords() * atom.get_mass()
+        mass = mass + atom.get_mass()
     center_of_mass = center_of_mass / mass
 
     return [center_of_mass[0], center_of_mass[1], center_of_mass[2]]
 
 
-def get_ligand(chain: Chain, residues: ResiduesDatabase) -> Residue:
+def get_ligand(chain: Chain, residues: ResiduesDatabase) -> ResidueDesc:
     # - go through residues that are not AA and cofactors and are greater than of 6 atoms (not including H)
     # - all of them are candidates for being ligands
     # - find center of masses for the whole chain
@@ -110,7 +110,7 @@ def get_ligand(chain: Chain, residues: ResiduesDatabase) -> Residue:
     chain_center_of_mass = [chain_center_of_mass[0], chain_center_of_mass[1], chain_center_of_mass[2]]
 
     closest_ligand = None
-    closest_ligand_to_center_of_mass_squared_distance = 1e30 # just a big number
+    closest_ligand_to_center_of_mass_squared_distance = 1e30  # just a big number
 
     # find closest ligand
     for residue in chain.get_residues():
@@ -128,13 +128,17 @@ def get_ligand(chain: Chain, residues: ResiduesDatabase) -> Residue:
             closest_ligand = residue
             closest_ligand_to_center_of_mass_squared_distance = squared_distance
 
+    # construct object of ResidueDesc class and fill atoms coordinates
+    fill_atoms_coords_in_residue(closest_ligand, residues)
+
     # show result
-    print(f'ligand selected: {closest_ligand.get_resname()} (distance to chain CoM: {sqrt(closest_ligand_to_center_of_mass_squared_distance)})')
+    print(f'ligand selected: {residues.residues[closest_ligand.get_resname()].get_short_name} (distance to chain CoM: '
+          f'{sqrt(closest_ligand_to_center_of_mass_squared_distance)})')
 
-    return closest_ligand
+    return residues.residues[closest_ligand.get_resname()]
 
 
-def get_neighbor_atoms(chain: Chain, ligand: Residue, residues: ResiduesDatabase) -> list:
+def get_neighbor_atoms(chain: Chain, ligand: ResidueDesc, residues: ResiduesDatabase) -> list:
     # use biopython neighboursearch to get list of AA atoms that close enough to ligand's atoms (using 10 angstroms)
     # - get list of all chain's atoms except ligand's atoms
     # - for each ligand's atom run neighbor search to find neighbors
@@ -144,7 +148,7 @@ def get_neighbor_atoms(chain: Chain, ligand: Residue, residues: ResiduesDatabase
     chain_atoms = list()
     for residue in chain.get_residues():
         # do not count atoms from ligand itself
-        if residue.get_resname() == ligand.get_resname():
+        if residue.get_resname() == ligand.get_short_name():
             continue
 
         # do not count atoms from ligands
@@ -158,7 +162,7 @@ def get_neighbor_atoms(chain: Chain, ligand: Residue, residues: ResiduesDatabase
     neighbour_atoms = list()
     for atom in ligand.get_atoms():
         search = NeighborSearch(chain_atoms)
-        current_neighbours = search.search(atom.coord, 10.0)
+        current_neighbours = search.search(atom.get_coords(), 10.0)
         for neighbour in current_neighbours:
             if neighbour not in neighbour_atoms:
                 neighbour_atoms.append(neighbour)
@@ -172,3 +176,15 @@ def get_bounding_box(atoms: list) -> BoundingBox:
         box.store_point(atom.coord[0], atom.coord[1], atom.coord[2])
 
     return box
+
+
+# get atoms coordinates of object of class Residue (Bio python) and set them to Residues database
+def fill_atoms_coords_in_residue(residue: Residue, residues: ResiduesDatabase):
+    # construct object of ResidueDesc class and fill atoms coordinates
+    ligand = residues.residues[residue.get_resname()]
+    for res_desc_atom in ligand.get_atoms():
+        for bio_atom in residue.get_atoms():
+            if res_desc_atom.get_fullname == bio_atom.get_name():
+                res_desc_atom.x = bio_atom.get_coord()[0]
+                res_desc_atom.y = bio_atom.get_coord()[1]
+                res_desc_atom.z = bio_atom.get_coord()[2]

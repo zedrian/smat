@@ -5,14 +5,13 @@ from smat import get_length
 
 
 # parse the flags of the input command line
-# todo make possible to run the script with different purposes
 def parse_input_command():
     parser = OptionParser()
-    parser.add_option("-i", "--file", dest="filename", help="input file to analyze (not realized yet)", metavar="FILE")
+    parser.add_option("-i", "--file", dest="filename", help="input file to analyze (not realized yet)", metavar="FILE")  # todo make possible to run for 1 file
     parser.add_option("-f", "--folder", dest="folder", help="input folder with data", metavar="FOLDER")
-    parser.add_option("-r", "--remaster", dest="remaster", default=False, help="remaster database (not realized yet)")
+    parser.add_option("-r", "--remaster", dest="remaster", default=False, help="remaster database (not realized yet)")  # todo generate database ones and write it to file and remaster each time it is necessary
     parser.add_option("-s", "--step", dest="step", help="the step of the grid", default=1.0, metavar="STEP")
-    parser.add_option("-u", "--units", dest="units", help="residues to be saved", metavar="UNITS")
+    parser.add_option("-u", "--units", dest="units", help="residues to be saved", metavar="UNITS", default=None)
 
     return parser.parse_args()
 
@@ -62,30 +61,44 @@ def save_ligand_forces_to_file(forces: dict, results_folder: str, pdb_file: str)
 
 # write units to csv file for the visualisator
 def write_units_csv(units: list, results_folder: str, pdb_file: str):
-    with open(os.path.join(results_folder, f'{pdb_file[:-4]}_units.csv'), 'w') as file:
+    with open(os.path.join(results_folder, f'units/{pdb_file[:-4]}.csv'), 'w') as file:
         file.write('x,y,z,radius,rgb,atom_name,atom_type,residue_name\n')
         for unit in units:
-            for atom in unit.get_atoms():
-                if atom.get_x() == atom.get_y() == atom.get_z() == 0.0:
-                    continue
-                else:
-                    rgb = '000000'
-                    if atom.get_type()[0].upper() == 'C' and atom.get_type() != 'Cl':
-                        rgb = 'FFFFCC'
-                    elif atom.get_type()[0].upper() == 'N':
-                        rgb = '3366FF'
-                    elif atom.get_type()[0].upper() == 'O':
-                        rgb = 'FF3300'
-                    elif atom.get_type()[0].upper() == 'H':
-                        rgb = 'FFССFF'
-                    elif atom.get_type()[0].upper() == 'S':
-                        rgb = 'FFFF00'
-                    elif atom.get_type() == 'Cl':
-                        rgb = '33FF33'
-                    elif atom.get_type() == 'Fe':
-                        rgb = '996600'
-                    file.write(
-                        f'{atom.get_x()},{atom.get_y()},{atom.get_z()},{atom.get_radius()/3},{rgb},{atom.get_fullname()},'
-                        f'{atom.get_type()},{atom.get_parent_name()}\n'
-                    )
+            if unit is not None:
+                for atom in unit.get_atoms():
+                    if atom.get_x() == atom.get_y() == atom.get_z() == 0.0:
+                        continue
+                    else:
+                        rgb = '000000'
+                        if atom.get_type()[0].upper() == 'C' and atom.get_type() != 'Cl':
+                            rgb = 'FFFFCC'
+                        elif atom.get_type()[0].upper() == 'N':
+                            rgb = '3366FF'
+                        elif atom.get_type()[0].upper() == 'O':
+                            rgb = 'FF3300'
+                        elif atom.get_type()[0].upper() == 'H':
+                            rgb = 'FFССFF'
+                        elif atom.get_type()[0].upper() == 'S':
+                            rgb = 'FFFF00'
+                        elif atom.get_type() == 'Cl':
+                            rgb = '33FF33'
+                        elif atom.get_type() == 'Fe':
+                            rgb = '996600'
+                        file.write(
+                            f'{atom.get_x()},{atom.get_y()},{atom.get_z()},{atom.get_radius()/3},{rgb},{atom.get_fullname()},'
+                            f'{atom.get_type()},{atom.get_parent_name()}\n'
+                        )
+        file.close()
+
+
+# write calculated potentials to file
+def save_potentials_to_file(active_site_points: list, results_folder: str, file_name: str):
+    with open(os.path.join(results_folder, f'potentials/{file_name[:-4]}.csv'), 'w') as file:
+        file.write('x,y,z,protein_coulomb,protein_lennard_jones,ligand_coulomb,ligand_lennard_jones\n')
+        for point in active_site_points:
+            file.write(
+                f'{point["coordinates"][0]},{point["coordinates"][1]},{point["coordinates"][2]},'
+                f'{point["protein_coulomb"]},{point["protein_lennard_jones"]},'
+                f'{point["ligand_coulomb"]},{point["ligand_lennard_jones"]}'
+                '\n')
         file.close()

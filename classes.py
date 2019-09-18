@@ -82,6 +82,9 @@ class AtomDesc:
     def get_z(self):
         return self.z
 
+    def get_coords(self):
+        return [self.x. self.y, self.z]
+
 
 class ResidueDesc:
     def __init__(self, long_name: str, short_name: str, atoms: list):
@@ -102,7 +105,7 @@ class ResidueDesc:
     def get_short_name(self):
         return self.short_name
 
-    def get_atoms(self):
+    def get_atoms(self) -> list:
         return self.atoms
 
     def get_atom(self, atom_fullname: str) -> AtomDesc:
