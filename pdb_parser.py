@@ -4,12 +4,14 @@ from Bio.PDB.Chain import Chain
 from Bio.PDB.Structure import Structure
 from Bio.SubsMat.MatrixInfo import blosum62
 from classes import BoundingBox, ResiduesDatabase, ResidueDesc
+from chainDesc import ChainDesc
 import numpy
 from math import sqrt
+from database_parser import database
 
 
-def get_chain(structure: Structure, residues: ResiduesDatabase) -> Chain:
-    chains = [c for c in structure.get_chains()]
+def get_chain(structure: Structure) -> ChainDesc:
+    chains = [ChainDesc(chain=c) for c in structure.get_chains()]
 
     # fast return if structure contains a single chain
     if len(chains) == 1:
@@ -17,24 +19,10 @@ def get_chain(structure: Structure, residues: ResiduesDatabase) -> Chain:
         return chains[0]
     print(f'structure contains {len(chains)} chains')
 
-    def chain_contains_ligands(chain: Chain) -> bool:
-        for residue in chain.get_residues():
-            if not residue.get_resname() in residues.get_amino_acids() + residues.get_cofactors():
-                atoms = [a for a in residue.get_atoms() if not a.get_name().startswith('H')]
-                if len(atoms) >= 6:
-                    return True
-        return False
-    chains_with_ligands = list(filter(chain_contains_ligands, chains))
+    chains_with_ligands = [c for c in chains if c.if_has_ligands()]
     print(f'chains with ligands: {len(chains_with_ligands)}')
 
-    def get_shortened_sequence(chain: Chain) -> str:
-        line = ''
-        for residue in chain.get_residues():
-            if residues.get_residue(residue.get_resname()).get_amino_acid_letter() is None:
-                continue
-            line += residues.get_residue(residue.get_resname()).get_amino_acid_letter()
-        return line
-    shortened_chain_sequences = list(map(get_shortened_sequence, chains_with_ligands))
+    shortened_chain_sequences = [c.get_short_seq() for c in chains_with_ligands]
 
     # - check all pair alignments
     # - if at least one pair has equality score less than threshold,
@@ -58,19 +46,20 @@ def get_chain(structure: Structure, residues: ResiduesDatabase) -> Chain:
 
     # as we are here, then no different chains were found -
     # so choose longest one
-    def get_chain_length(chain: Chain) -> int:
-        sequence = get_shortened_sequence(chain)
+    def get_chain_length(chain: ChainDesc) -> int:
+        sequence = chain.get_short_seq()
         return len(sequence)
+
     sorted_chains = sorted(chains_with_ligands, key=get_chain_length, reverse=True)
 
     longest_chain = sorted_chains[0]
-    print(f'chain selected: {longest_chain.get_id()}')
+    print(f'chain selected: {longest_chain.chain.get_id()}')
 
     return longest_chain
 
 
-def is_ligand(residue: Residue, residues: ResiduesDatabase) -> bool:
-    if not residue.get_resname() in residues.get_amino_acids() + residues.get_cofactors():
+def is_ligand(residue: ResidueDesc) -> bool:
+    if not residue.get_short_name() in database.get_amino_acids() + database.get_cofactors():
         atoms = [a for a in residue.get_atoms() if not a.get_name().startswith('H')]
         if len(atoms) >= 6:
             return True
@@ -90,7 +79,7 @@ def get_center_of_mass(residue: ResidueDesc) -> list:
     return [center_of_mass[0], center_of_mass[1], center_of_mass[2]]
 
 
-def get_ligand(chain: Chain, residues: ResiduesDatabase) -> ResidueDesc:
+def get_ligand(chain: Chain) -> ResidueDesc:
     # - go through residues that are not AA and cofactors and are greater than of 6 atoms (not including H)
     # - all of them are candidates for being ligands
     # - find center of masses for the whole chain
@@ -114,7 +103,7 @@ def get_ligand(chain: Chain, residues: ResiduesDatabase) -> ResidueDesc:
 
     # find closest ligand
     for residue in chain.get_residues():
-        if not is_ligand(residue, residues):
+        if not is_ligand(residue, database):
             continue
 
         ligand_center_of_mass = get_center_of_mass(residue)
@@ -129,16 +118,16 @@ def get_ligand(chain: Chain, residues: ResiduesDatabase) -> ResidueDesc:
             closest_ligand_to_center_of_mass_squared_distance = squared_distance
 
     # construct object of ResidueDesc class and fill atoms coordinates
-    fill_atoms_coords_in_residue(closest_ligand, residues)
+    fill_atoms_coords_in_residue(closest_ligand, database)
 
     # show result
-    print(f'ligand selected: {residues.residues[closest_ligand.get_resname()].get_short_name} (distance to chain CoM: '
+    print(f'ligand selected: {database.residues[closest_ligand.get_resname()].get_short_name} (distance to chain CoM: '
           f'{sqrt(closest_ligand_to_center_of_mass_squared_distance)})')
 
-    return residues.residues[closest_ligand.get_resname()]
+    return database.residues[closest_ligand.get_resname()]
 
 
-def get_neighbor_atoms(chain: Chain, ligand: ResidueDesc, residues: ResiduesDatabase) -> list:
+def get_neighbor_atoms(chain: ChainDesc, ligand: ResidueDesc) -> list:
     # use biopython neighboursearch to get list of AA atoms that close enough to ligand's atoms (using 10 angstroms)
     # - get list of all chain's atoms except ligand's atoms
     # - for each ligand's atom run neighbor search to find neighbors
@@ -148,21 +137,21 @@ def get_neighbor_atoms(chain: Chain, ligand: ResidueDesc, residues: ResiduesData
     chain_atoms = list()
     for residue in chain.get_residues():
         # do not count atoms from ligand itself
-        if residue.get_resname() == ligand.get_short_name():
+        if residue.get_short_name() == ligand.get_short_name():
             continue
 
         # do not count atoms from ligands
         # TODO: refactor
-        if residue.get_resname() not in residues.get_amino_acids() + residues.get_cofactors():
+        if residue.get_short_name() not in database.get_amino_acids() + database.get_cofactors():
             continue
 
-        for atom in residue.get_atoms():
+        for atom in residue.chain.get_atoms():
             chain_atoms.append(atom)
 
     neighbour_atoms = list()
     for atom in ligand.get_atoms():
         search = NeighborSearch(chain_atoms)
-        current_neighbours = search.search(atom.get_coords(), 10.0)
+        current_neighbours = search.search(database.get_physical_atom(atom.get_ids[0]).get_coords(), 10.0)
         for neighbour in current_neighbours:
             if neighbour not in neighbour_atoms:
                 neighbour_atoms.append(neighbour)

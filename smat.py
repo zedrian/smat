@@ -1,11 +1,11 @@
+from database_parser import get_residues_description, database
 from math import sqrt, isnan, pi
 import numpy
 from sys import stdout, argv
 from Bio.PDB import *
 from Bio.PDB.Atom import Atom
-import os
+from chainDesc  import ChainDesc
 from classes import BoundingBox, ResiduesDatabase
-from database_parser import get_residues_description
 from pdb_parser import *
 from files_manager import *
 
@@ -25,9 +25,9 @@ def show_progress(label, width, percentage):
     stdout.flush()
 
 
-def get_van_der_walls_radius(atom: Atom, residues: dict) -> float:
+def get_van_der_walls_radius(atom: Atom) -> float:
     residue_name = atom.get_parent().get_resname()
-    residue = residues[residue_name]
+    residue = database.get_residue(residue_name)
     atom_description = residue.get_atom(atom.get_name())
 
     return atom_description.get_radius()
@@ -43,7 +43,7 @@ def get_direction(start: list, end: list) -> list:
     return [delta[0] / length, delta[1] / length, delta[2] / length]
 
 
-def point_belongs_to_active_site(point: list, atoms: list, center: list, residues: dict) -> bool:
+def point_belongs_to_active_site(point: list, atoms: list, center: list) -> bool:
 
     def ray_intersects_sphere(ray_start: list, ray_end: list, sphere_center: list, sphere_radius: float) -> bool:
         ray_length = get_length(numpy.subtract(ray_start, ray_end))
@@ -79,14 +79,14 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list, residue
 
     # check whether center-to-point ray intersects any van der Waals radius of atoms
     for atom in atoms:
-        radius = get_van_der_walls_radius(atom, residues)
+        radius = get_van_der_walls_radius(atom)
         if ray_intersects_sphere(center, point, atom.coord, radius):
             return False
 
     return True
 
 
-def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_box: BoundingBox, ligand_center_of_mass: list, residues: dict, ligand_atoms: list) -> list:
+def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_box: BoundingBox, ligand_center_of_mass: list, ligand_atoms: list) -> list:
     grid_coordinates = list()
 
     total_point_count = ((bounding_box.max_x - bounding_box.min_x)//step + 1) * \
@@ -103,7 +103,7 @@ def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_
             while z < bounding_box.max_z:
                 # do stuff
                 current_point = [x, y, z]
-                if point_belongs_to_active_site(current_point, neighbour_atoms, ligand_center_of_mass, residues):
+                if point_belongs_to_active_site(current_point, neighbour_atoms, ligand_center_of_mass):
                     grid_coordinates.append(current_point)
 
                 point_index += 1
@@ -118,16 +118,15 @@ def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_
     for atom in ligand_atoms:
         coords = atom.get_coord()
         for point in grid_coordinates:
-            if get_length(numpy.subtract(point, coords)) <= get_van_der_walls_radius(atom, residues):
+            if get_length(numpy.subtract(point, coords)) <= get_van_der_walls_radius(atom):
                 grid_coordinates.remove(point)
     show_progress('potential grid calculation: ', 80, 1.0)
     return grid_coordinates
 
 
-def calculate_potential(point: list, atoms: list, residues: dict) -> (float, float):
+def calculate_potential(point: list, atoms: list) -> (float, float):
     # point is a list of coordinates like [x, y, z]
     # atoms is a list of Atom objects
-    # residues is a dictionary with residue descriptions
 
     total_coulomb_potential = 0.0
     total_lennard_jones_energy = 0.0
@@ -137,12 +136,12 @@ def calculate_potential(point: list, atoms: list, residues: dict) -> (float, flo
     show_progress('potential grid calculation: ', 80, float(atom_index) / float(total_atom_count))
     for atom in atoms:
         residue_name = atom.get_parent().get_resname()
-        atom_description = residues[residue_name].get_atom(atom.get_name())
+        atom_description = database.get_residue(residue_name).get_atom(atom.get_name())
 
         # fill the coords of local - class
-        residues[residue_name].get_atom(atom.get_name()).x = atom.get_coord()[0]
-        residues[residue_name].get_atom(atom.get_name()).y = atom.get_coord()[1]
-        residues[residue_name].get_atom(atom.get_name()).z = atom.get_coord()[2]
+        database.get_residue(residue_name).get_atom(atom.get_name()).x = atom.get_coord()[0]
+        database.get_residue(residue_name).get_atom(atom.get_name()).y = atom.get_coord()[1]
+        database.get_residue(residue_name).get_atom(atom.get_name()).z = atom.get_coord()[2]
         # it shouldn't be here but nevertheless
 
         # calculate Coulomb potential
@@ -170,14 +169,14 @@ def calculate_potential(point: list, atoms: list, residues: dict) -> (float, flo
     return total_coulomb_potential, total_lennard_jones_energy
 
 
-def construct_active_site_in_potentials_form(grid_coordinates: list, protein_atoms: list, ligand_atoms: list, residues: ResiduesDatabase) -> list:
+def construct_active_site_in_potentials_form(grid_coordinates: list, protein_atoms: list, ligand_atoms: list) -> list:
     # calculate indused potentials and Van Der Waals energy in each point of active center grid
 
     active_site_points = list()
 
     for point in grid_coordinates:
-        protein_coulomb_potential, protein_lennard_jones_energy = calculate_potential(point, protein_atoms, residues)
-        ligand_coulomb_potential, ligand_lennard_jones_energy = calculate_potential(point, ligand_atoms, residues)
+        protein_coulomb_potential, protein_lennard_jones_energy = calculate_potential(point, protein_atoms)
+        ligand_coulomb_potential, ligand_lennard_jones_energy = calculate_potential(point, ligand_atoms)
         if not isnan(protein_lennard_jones_energy):
             if ligand_lennard_jones_energy != 0 and ligand_lennard_jones_energy < 10.0:
                 active_site_points.append(
@@ -190,7 +189,7 @@ def construct_active_site_in_potentials_form(grid_coordinates: list, protein_ato
     return active_site_points
 
 
-def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: ResiduesDatabase, dielectric_const: float = 10.0) -> dict:
+def calculate_forces(ligand_atoms: list, neighbour_atoms: list, dielectric_const: float = 10.0) -> dict:
 
     forces = dict()
     ligand_atom_count = float(len(ligand_atoms))
@@ -206,9 +205,9 @@ def calculate_forces(ligand_atoms: list, neighbour_atoms: list, residues: Residu
         ligand_atom_radius = ligand_atom.get_radius()
         ligand_atom_position = ligand_atom.get_coords()
         for protein_atom in neighbour_atoms:
-            protein_atom_charge = residues[protein_atom.get_parent().get_resname()].get_atom(protein_atom.get_name()).get_charge()
-            protein_atom_edep = residues[protein_atom.get_parent().get_resname()].get_atom(protein_atom.get_name()).get_edep()
-            protein_atom_radius = residues[protein_atom.get_parent().get_resname()].get_atom(protein_atom.get_name()).get_radius()
+            protein_atom_charge = database.get_residue(protein_atom.get_parent().get_resname()).get_atom(protein_atom.get_name()).get_charge()
+            protein_atom_edep = database.get_residue(protein_atom.get_parent().get_resname()).get_atom(protein_atom.get_name()).get_edep()
+            protein_atom_radius = database.get_residue(protein_atom.get_parent().get_resname()).get_atom(protein_atom.get_name()).get_radius()
             protein_atom_position = protein_atom.coord
             position_delta = numpy.subtract(protein_atom_position, ligand_atom_position)
             distance = get_length(position_delta)
@@ -271,8 +270,8 @@ if __name__ == '__main__':
     options, args = parse_input_command()
 
     # load residues database
-    residues = get_residues_description()
-    print('residues database constructed')
+    # database = get_residues_description()
+    # print('residues database constructed')
 
     # get main variables from command line
     step = float(options.step)
@@ -300,20 +299,20 @@ if __name__ == '__main__':
             # get chain of the structure to work with
             parser = PDBParser()
             structure = parser.get_structure('pdb', file_name)
-            chain = get_chain(structure, residues)
+            chain = get_chain(structure)
 
             # get ligand and "transform" it to object of ResidueDesc class
-            ligand = get_ligand(chain, residues)
+            ligand = get_ligand(chain)
             ligand_atoms = ligand.get_atoms()
             ligand_center_of_mass = get_center_of_mass(ligand)
 
             # write residues that need to be visualised to csv file
             write_units_csv(ligand, options.units, results_folder, pdb_file)
 
-            neighbour_atoms = get_neighbor_atoms(chain, ligand, residues)
+            neighbour_atoms = get_neighbor_atoms(chain, ligand)
             bounding_box = get_bounding_box(neighbour_atoms)
 
-            forces = calculate_forces(ligand_atoms, neighbour_atoms, residues)
+            forces = calculate_forces(ligand_atoms, neighbour_atoms)
             # save_forces_to_file(forces, results_folder, pdb_file)
             momentum = calculate_momentum(forces, ligand_center_of_mass)
             print(f'momentum = {momentum}')
@@ -323,11 +322,11 @@ if __name__ == '__main__':
             print(f'accumulated force = {forces}')
             accumulated_forces[pdb_file] = accumulated_force
 
-            grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, ligand_center_of_mass, residues, ligand_atoms)
+            grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, ligand_center_of_mass, database, ligand_atoms)
             print('grid coordinates calculated')
             print(f'grid length: {len(grid_coordinates)}')
 
-            active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms, residues)
+            active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms)
             save_potentials_to_file(active_site_points, results_folder, pdb_file)
 
             file_index += 1.0 / file_count

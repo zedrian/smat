@@ -181,3 +181,6 @@ def get_residues_description() -> ResiduesDatabase:
     # residues_database.add_residue(short_name='HIP', residue=residues_database.get_residue('HIS'))
 
     return residues_database
+
+
+database = get_residues_description()
