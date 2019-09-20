@@ -25,12 +25,13 @@ def show_progress(label, width, percentage):
     stdout.flush()
 
 
-def get_van_der_walls_radius(atom: Atom) -> float:
-    residue_name = atom.get_parent().get_resname()
-    residue = database.get_residue(residue_name)
-    atom_description = residue.get_atom(atom.get_name())
-
-    return atom_description.get_radius()
+# def get_van_der_walls_radius(atom: PhysicalAtom) -> float:
+#     residue_name = atom.get_atom_desc().get_parent_name()
+#
+#     residue = database.get_residue(residue_name, terminus=None)  # no matter if it is terminus or not - radius is the same
+#     atom_description = residue.get_atom(atom.get_name())
+#
+#     return atom_description.get_radius()
 
 
 def get_length(v: list) -> float:
@@ -78,8 +79,8 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list) -> bool
         return False
 
     # check whether center-to-point ray intersects any van der Waals radius of atoms
-    for atom in atoms:
-        radius = get_van_der_walls_radius(atom)
+    for atom in atoms:  # physical atom
+        radius = atom.get_atom_desc().get_radius()
         if ray_intersects_sphere(center, point, atom.coord, radius):
             return False
 
@@ -115,10 +116,10 @@ def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_
 
         x += step
 
-    for atom in ligand_atoms:
-        coords = atom.get_coord()
+    for atom in ligand_atoms:  # physical atoms
+        coords = atom.get_coords()
         for point in grid_coordinates:
-            if get_length(numpy.subtract(point, coords)) <= get_van_der_walls_radius(atom):
+            if get_length(numpy.subtract(point, coords)) <= atom.get_atom_desc().get_radius():
                 grid_coordinates.remove(point)
     show_progress('potential grid calculation: ', 80, 1.0)
     return grid_coordinates
@@ -134,18 +135,9 @@ def calculate_potential(point: list, atoms: list) -> (float, float):
     atom_index = 0
     total_atom_count = len(atoms)
     show_progress('potential grid calculation: ', 80, float(atom_index) / float(total_atom_count))
-    for atom in atoms:
-        residue_name = atom.get_parent().get_resname()
-        atom_description = database.get_residue(residue_name).get_atom(atom.get_name())
-
-        # fill the coords of local - class
-        database.get_residue(residue_name).get_atom(atom.get_name()).x = atom.get_coord()[0]
-        database.get_residue(residue_name).get_atom(atom.get_name()).y = atom.get_coord()[1]
-        database.get_residue(residue_name).get_atom(atom.get_name()).z = atom.get_coord()[2]
-        # it shouldn't be here but nevertheless
-
+    for atom in atoms:  # physical atom
         # calculate Coulomb potential
-        charge = atom_description.get_charge()
+        charge = atom.get_atom_desc().get_charge()
         distance = get_length(numpy.subtract(point, atom.get_coord()))
 
         dielectric_const = 10
@@ -153,9 +145,9 @@ def calculate_potential(point: list, atoms: list) -> (float, float):
         total_coulomb_potential += coulomb_potential
 
         # check whether we should calculate Lennard-Jones potential
-        sigma = atom_description.get_radius() * 2
+        sigma = atom.get_atom_desc().get_radius() * 2
         if distance <= sigma * 2.5:  # 2.5 sigma is critical distance
-            epsilon = atom_description.get_edep()
+            epsilon = atom.get_atom_desc().get_edep()
 
             lennard_jones_energy = 4 * epsilon * ((sigma / distance) ** 12 - (sigma / distance) ** 6)
 
@@ -194,21 +186,21 @@ def calculate_forces(ligand_atoms: list, neighbour_atoms: list, dielectric_const
     forces = dict()
     ligand_atom_count = float(len(ligand_atoms))
     progress = 0.0
-    for ligand_atom in ligand_atoms:
+    for ligand_atom in ligand_atoms:  # physical atom
         show_progress('calculating forces: ', 40, progress)
         integral_force = [0, 0, 0]
         integral_coulomb_force = [0, 0, 0]
         integral_lennard_force = [0, 0, 0]
         # TODO: refactor
-        ligand_atom_charge = ligand_atom.get_charge()
-        ligand_atom_edep = ligand_atom.get_edep()
-        ligand_atom_radius = ligand_atom.get_radius()
+        ligand_atom_charge = ligand_atom.get_atom_desc().get_charge()
+        ligand_atom_edep = ligand_atom.get_atom_desc().get_edep()
+        ligand_atom_radius = ligand_atom.get_atom_desc().get_radius()
         ligand_atom_position = ligand_atom.get_coords()
-        for protein_atom in neighbour_atoms:
-            protein_atom_charge = database.get_residue(protein_atom.get_parent().get_resname()).get_atom(protein_atom.get_name()).get_charge()
-            protein_atom_edep = database.get_residue(protein_atom.get_parent().get_resname()).get_atom(protein_atom.get_name()).get_edep()
-            protein_atom_radius = database.get_residue(protein_atom.get_parent().get_resname()).get_atom(protein_atom.get_name()).get_radius()
-            protein_atom_position = protein_atom.coord
+        for protein_atom in neighbour_atoms:  # physical atom
+            protein_atom_charge = protein_atom.get_atom_desc().get_charge()
+            protein_atom_edep = protein_atom.get_atom_desc().get_edep()
+            protein_atom_radius = protein_atom.get_atom_desc().get_radius()
+            protein_atom_position = protein_atom.get_coords()
             position_delta = numpy.subtract(protein_atom_position, ligand_atom_position)
             distance = get_length(position_delta)
             force_direction = get_direction(ligand_atom_position, protein_atom_position)
@@ -229,7 +221,7 @@ def calculate_forces(ligand_atoms: list, neighbour_atoms: list, dielectric_const
                               integral_coulomb_force[2] + force[2]]
 
         # save to dictionary
-        forces[ligand_atom.get_name()] = (ligand_atom_position, integral_force)
+        forces[ligand_atom.get_atom_desc().get_name()] = (ligand_atom_position, integral_force)
 
         progress += 1.0 / ligand_atom_count
     show_progress('calculating forces: ', 40, 1.0)
@@ -269,10 +261,6 @@ if __name__ == '__main__':
 
     options, args = parse_input_command()
 
-    # load residues database
-    # database = get_residues_description()
-    # print('residues database constructed')
-
     # get main variables from command line
     step = float(options.step)
     input_folder = options.folder
@@ -299,17 +287,21 @@ if __name__ == '__main__':
             # get chain of the structure to work with
             parser = PDBParser()
             structure = parser.get_structure('pdb', file_name)
-            chain = get_chain(structure)
+            chain = get_chain(structure)  # ChainDesc
 
             # get ligand and "transform" it to object of ResidueDesc class
-            ligand = get_ligand(chain)
-            ligand_atoms = ligand.get_atoms()
+            ligand = get_ligand(chain)  # Physical Residue
+            ligand_atoms = ligand.get_atoms()  # Physical Atoms
             ligand_center_of_mass = get_center_of_mass(ligand)
 
             # write residues that need to be visualised to csv file
-            write_units_csv(ligand, options.units, results_folder, pdb_file)
+            units_ids = database.get_residue(options.units, terminus=None).get_ids()  # get physical residues ids # todo make it possible to save terminus aa
+            units = [chain.get_residue_by_id(uid) for uid in units_ids]  # get physical residues
+            units.append(ligand)  # add ligand (already a physical residue) to units
+            write_units_csv(units, results_folder, pdb_file)
 
             neighbour_atoms = get_neighbor_atoms(chain, ligand)
+
             bounding_box = get_bounding_box(neighbour_atoms)
 
             forces = calculate_forces(ligand_atoms, neighbour_atoms)
@@ -322,7 +314,7 @@ if __name__ == '__main__':
             print(f'accumulated force = {forces}')
             accumulated_forces[pdb_file] = accumulated_force
 
-            grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, ligand_center_of_mass, database, ligand_atoms)
+            grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, ligand_center_of_mass, ligand_atoms)
             print('grid coordinates calculated')
             print(f'grid length: {len(grid_coordinates)}')
 

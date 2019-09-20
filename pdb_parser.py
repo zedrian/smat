@@ -1,9 +1,8 @@
 from Bio import pairwise2
-from Bio.PDB import NeighborSearch, Residue
-from Bio.PDB.Chain import Chain
+from Bio.PDB import NeighborSearch
 from Bio.PDB.Structure import Structure
 from Bio.SubsMat.MatrixInfo import blosum62
-from classes import BoundingBox, ResiduesDatabase, ResidueDesc
+from classes import BoundingBox, PhysicalResidue, PhysicalAtom
 from chainDesc import ChainDesc
 import numpy
 from math import sqrt
@@ -22,7 +21,7 @@ def get_chain(structure: Structure) -> ChainDesc:
     chains_with_ligands = [c for c in chains if c.if_has_ligands()]
     print(f'chains with ligands: {len(chains_with_ligands)}')
 
-    shortened_chain_sequences = [c.get_short_seq() for c in chains_with_ligands]
+    shortened_chain_sequences = [c.get_shortened_seq() for c in chains_with_ligands]
 
     # - check all pair alignments
     # - if at least one pair has equality score less than threshold,
@@ -47,7 +46,7 @@ def get_chain(structure: Structure) -> ChainDesc:
     # as we are here, then no different chains were found -
     # so choose longest one
     def get_chain_length(chain: ChainDesc) -> int:
-        sequence = chain.get_short_seq()
+        sequence = chain.get_shortened_seq()
         return len(sequence)
 
     sorted_chains = sorted(chains_with_ligands, key=get_chain_length, reverse=True)
@@ -58,28 +57,28 @@ def get_chain(structure: Structure) -> ChainDesc:
     return longest_chain
 
 
-def is_ligand(residue: ResidueDesc) -> bool:
-    if not residue.get_short_name() in database.get_amino_acids() + database.get_cofactors():
-        atoms = [a for a in residue.get_atoms() if not a.get_name().startswith('H')]
+def is_ligand(residue: PhysicalResidue) -> bool:
+    if not residue.get_residue_desc().get_short_name() in database.get_amino_acids() + database.get_cofactors():
+        atoms = [a.get_atom_desc() for a in residue.get_atoms() if not a.get_name().startswith('H')]
         if len(atoms) >= 6:
             return True
 
 
-def get_center_of_mass(residue: ResidueDesc) -> list:
+def get_center_of_mass(residue: PhysicalResidue) -> list:
     center_of_mass = None
     mass = 0.0
-    for atom in residue.get_atoms():
+    for atom in residue.get_atoms():  # physical atom
         if center_of_mass is None:
-            center_of_mass = atom.get_coords() * atom.get_mass()
+            center_of_mass = atom.get_coords() * atom.get_atom_desc().get_mass()
         else:
-            center_of_mass = center_of_mass + atom.get_coords() * atom.get_mass()
-        mass = mass + atom.get_mass()
+            center_of_mass = center_of_mass + atom.get_coords() * atom.get_atom_desc().get_mass()
+        mass = mass + atom.get_atom_desc().get_mass()
     center_of_mass = center_of_mass / mass
 
     return [center_of_mass[0], center_of_mass[1], center_of_mass[2]]
 
 
-def get_ligand(chain: Chain) -> ResidueDesc:
+def get_ligand(chain: ChainDesc) -> PhysicalResidue:
     # - go through residues that are not AA and cofactors and are greater than of 6 atoms (not including H)
     # - all of them are candidates for being ligands
     # - find center of masses for the whole chain
@@ -88,13 +87,13 @@ def get_ligand(chain: Chain) -> ResidueDesc:
     # compute chain center of mass at first
     chain_center_of_mass = None
     chain_mass = 0.0
-    for residue in chain.get_residues():
-        for atom in residue.get_atoms():
+    for residue in chain.get_residues():  # physical residue
+        for atom in residue.get_atoms():  # physical atom
             if chain_center_of_mass is None:
-                chain_center_of_mass = atom.coord * atom.mass
+                chain_center_of_mass = atom.coords * atom.get_atom_desc().get_mass()
             else:
-                chain_center_of_mass = chain_center_of_mass + atom.coord * atom.mass
-            chain_mass = chain_mass + atom.mass
+                chain_center_of_mass = chain_center_of_mass + atom.coords * atom.get_atom_desc().get_mass()
+            chain_mass = chain_mass + atom.get_atom_desc().get_mass()
     chain_center_of_mass = chain_center_of_mass / chain_mass
     chain_center_of_mass = [chain_center_of_mass[0], chain_center_of_mass[1], chain_center_of_mass[2]]
 
@@ -102,8 +101,8 @@ def get_ligand(chain: Chain) -> ResidueDesc:
     closest_ligand_to_center_of_mass_squared_distance = 1e30  # just a big number
 
     # find closest ligand
-    for residue in chain.get_residues():
-        if not is_ligand(residue, database):
+    for residue in chain.get_residues():  # physical residue
+        if not is_ligand(residue):
             continue
 
         ligand_center_of_mass = get_center_of_mass(residue)
@@ -117,17 +116,14 @@ def get_ligand(chain: Chain) -> ResidueDesc:
             closest_ligand = residue
             closest_ligand_to_center_of_mass_squared_distance = squared_distance
 
-    # construct object of ResidueDesc class and fill atoms coordinates
-    fill_atoms_coords_in_residue(closest_ligand, database)
-
     # show result
-    print(f'ligand selected: {database.residues[closest_ligand.get_resname()].get_short_name} (distance to chain CoM: '
+    print(f'ligand selected: {database.get_residue(closest_ligand.get_residue_desc().get_short_name())} distance to chain CoM: '
           f'{sqrt(closest_ligand_to_center_of_mass_squared_distance)})')
 
-    return database.residues[closest_ligand.get_resname()]
+    return closest_ligand
 
 
-def get_neighbor_atoms(chain: ChainDesc, ligand: ResidueDesc) -> list:
+def get_neighbor_atoms(chain: ChainDesc, ligand: PhysicalResidue) -> list:  # a list of physical atoms
     # use biopython neighboursearch to get list of AA atoms that close enough to ligand's atoms (using 10 angstroms)
     # - get list of all chain's atoms except ligand's atoms
     # - for each ligand's atom run neighbor search to find neighbors
@@ -135,45 +131,54 @@ def get_neighbor_atoms(chain: ChainDesc, ligand: ResidueDesc) -> list:
 
     # collect chain atoms
     chain_atoms = list()
-    for residue in chain.get_residues():
+    for residue in chain.get_residues():  # physical residue
         # do not count atoms from ligand itself
-        if residue.get_short_name() == ligand.get_short_name():
+        if residue.get_residue_desc().get_short_name() == ligand.get_residue_desc().get_short_name():
             continue
 
         # do not count atoms from ligands
         # TODO: refactor
-        if residue.get_short_name() not in database.get_amino_acids() + database.get_cofactors():
+        if residue.get_residue_desc().get_short_name() not in database.get_amino_acids() + database.get_cofactors():
             continue
 
-        for atom in residue.chain.get_atoms():
+        for atom in residue.chain.get_atoms():  # BioPython atom!!!!
             chain_atoms.append(atom)
 
     neighbour_atoms = list()
-    for atom in ligand.get_atoms():
+    for atom in ligand.get_atoms():  # physical atom
         search = NeighborSearch(chain_atoms)
-        current_neighbours = search.search(database.get_physical_atom(atom.get_ids[0]).get_coords(), 10.0)
-        for neighbour in current_neighbours:
+        current_neighbours = search.search(atom.get_coords(), 10.0)
+        for neighbour in current_neighbours:  # BioPython atom!!!!
             if neighbour not in neighbour_atoms:
-                neighbour_atoms.append(neighbour)
+
+                terminus = None
+                if neighbour.get_parent().get_segid() == 1:
+                    terminus = 'N'
+                elif 'OXT' in [a.get_id() for a in neighbour.get_parent().get_atoms()]:
+                    terminus = 'C'
+                atom_desc = database.get_residue(neighbour.get_parent().get_resname(), terminus).get_atom(neighbour.get_id())
+                physical_atom = PhysicalAtom(bio_atom=neighbour, atom_desc=atom_desc)
+                neighbour_atoms.append(physical_atom)
     return neighbour_atoms
 
 
 def get_bounding_box(atoms: list) -> BoundingBox:
     box = BoundingBox()
 
-    for atom in atoms:
-        box.store_point(atom.coord[0], atom.coord[1], atom.coord[2])
+    for atom in atoms:  # physical atom
+        box.store_point(atom.get_coords[0], atom.get_coords[1], atom.get_coords[2])
 
     return box
 
 
-# get atoms coordinates of object of class Residue (Bio python) and set them to Residues database
-def fill_atoms_coords_in_residue(residue: Residue, residues: ResiduesDatabase):
-    # construct object of ResidueDesc class and fill atoms coordinates
-    ligand = residues.residues[residue.get_resname()]
-    for res_desc_atom in ligand.get_atoms():
-        for bio_atom in residue.get_atoms():
-            if res_desc_atom.get_fullname == bio_atom.get_name():
-                res_desc_atom.x = bio_atom.get_coord()[0]
-                res_desc_atom.y = bio_atom.get_coord()[1]
-                res_desc_atom.z = bio_atom.get_coord()[2]
+# # get atoms coordinates of object of class Residue (Bio python) and set them to Residues database
+# def fill_atoms_coords_in_residue(residue: PhysicalResidue):
+#     # construct object of ResidueDesc class and fill atoms coordinates
+#     ligand = database.get_residue(residue_short_name=residue.get_residue_desc().get_short_name(),
+#                                   terminus=residue.get_residue_desc().if_terminus())  # ResidueDesc
+#     for res_desc_atom in ligand.get_atoms():  # AtomDesc
+#         for bio_atom in residue.get_atoms():
+#             if res_desc_atom.get_fullname == bio_atom.get_name():
+#                 res_desc_atom.x = bio_atom.get_coord()[0]
+#                 res_desc_atom.y = bio_atom.get_coord()[1]
+#                 res_desc_atom.z = bio_atom.get_coord()[2]

@@ -63,30 +63,30 @@ def save_ligand_forces_to_file(forces: dict, results_folder: str, pdb_file: str)
 def write_units_csv(units: list, results_folder: str, pdb_file: str):
     with open(os.path.join(results_folder, f'units/{pdb_file[:-4]}.csv'), 'w') as file:
         file.write('x,y,z,radius,rgb,atom_name,atom_type,residue_name\n')
-        for unit in units:
+        for unit in units:  # physical residue
             if unit is not None:
-                for atom in unit.get_atoms():
+                for atom in unit.get_atoms():  # physical atom
                     if atom.get_x() == atom.get_y() == atom.get_z() == 0.0:
                         continue
                     else:
                         rgb = '000000'
-                        if atom.get_type()[0].upper() == 'C' and atom.get_type() != 'Cl':
+                        if atom.get_atom_desc().get_type()[0].upper() == 'C' and atom.get_type() != 'Cl':
                             rgb = 'FFFFCC'
-                        elif atom.get_type()[0].upper() == 'N':
+                        elif atom.get_atom_desc().get_type()[0].upper() == 'N':
                             rgb = '3366FF'
-                        elif atom.get_type()[0].upper() == 'O':
+                        elif atom.get_atom_desc().get_type()[0].upper() == 'O':
                             rgb = 'FF3300'
-                        elif atom.get_type()[0].upper() == 'H':
+                        elif atom.get_atom_desc().get_type()[0].upper() == 'H':
                             rgb = 'FFССFF'
-                        elif atom.get_type()[0].upper() == 'S':
+                        elif atom.get_atom_desc().get_type()[0].upper() == 'S':
                             rgb = 'FFFF00'
-                        elif atom.get_type() == 'Cl':
+                        elif atom.get_atom_desc().get_type() == 'Cl':
                             rgb = '33FF33'
-                        elif atom.get_type() == 'Fe':
+                        elif atom.get_atom_desc().get_type() == 'Fe':
                             rgb = '996600'
                         file.write(
-                            f'{atom.get_x()},{atom.get_y()},{atom.get_z()},{atom.get_radius()/3},{rgb},{atom.get_fullname()},'
-                            f'{atom.get_type()},{atom.get_parent_name()}\n'
+                            f'{atom.get_x()},{atom.get_y()},{atom.get_z()},{atom.get_atom_desc().get_radius()/3},{rgb},{atom.get_atom_desc().get_fullname()},'
+                            f'{atom.get_atom_desc().get_type()},{atom.get_atom_desc().get_parent_name()}\n'
                         )
         file.close()
 

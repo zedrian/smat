@@ -1,6 +1,7 @@
 from pandas import read_csv
 from classes import ResidueDesc, AtomDesc, ResiduesDatabase
 import os
+from pprint import pprint
 
 
 # construct database from the parametric files
@@ -17,7 +18,7 @@ def get_residues_description() -> ResiduesDatabase:
     residues_database = ResiduesDatabase()
 
     # construct ResiduDesc objects from the prep file
-    def construct_resdesclist_from_prep(residues_database: ResiduesDatabase, prepfile: str):
+    def construct_resdesclist_from_prep(residues_database: ResiduesDatabase, prepfile: str, terminus=None):
 
         # divide prep file on described residues per lines
         elements = dict()
@@ -57,7 +58,7 @@ def get_residues_description() -> ResiduesDatabase:
                 short_name = elements[key][2].split(' ')[1]
                 long_name = elements[key][0]
 
-            res_desc = ResidueDesc(long_name=long_name, short_name=short_name, atoms=list())
+            res_desc = ResidueDesc(long_name=long_name, short_name=short_name, atoms=list(), terminus=terminus)
             for line in range(5, len(elements[key])):
                 if elements[key][line] != '':
                     line_elements = [x for x in elements[key][line].split(' ') if x != '']
@@ -120,7 +121,7 @@ def get_residues_description() -> ResiduesDatabase:
                 else:
                     break
 
-            residues_database.add_residue(short_name=res_desc.get_short_name(), residue=res_desc)
+            residues_database.add_residue(res_desc)
 
     # construct ResiduDesc objects from the libraries
     def construct_resdesclist_from_lib(residues_database: ResiduesDatabase):
@@ -168,17 +169,22 @@ def get_residues_description() -> ResiduesDatabase:
 
                     res_desc.atoms.append(atom_desc)
 
-                residues_database.add_residue(short_name=res_desc.get_short_name(), residue=res_desc)
+                residues_database.add_residue(res_desc)
 
     prepdir = 'Database/prep/'
     for root, dirs, filenames in os.walk(prepdir):
         for prepfile in filenames:
-            construct_resdesclist_from_prep(residues_database, os.path.join(root, prepfile))
+            if prepfile != 'all_aminoct94.in' and prepfile != 'all_aminont94.in':  # these files only for terminus amino acids
+                construct_resdesclist_from_prep(residues_database, os.path.join(root, prepfile))
+            elif prepfile == 'all_aminoct94.in':
+                construct_resdesclist_from_prep(residues_database, os.path.join(root, prepfile), terminus='C')
+            elif prepfile == 'all_aminont94.in':
+                construct_resdesclist_from_prep(residues_database, os.path.join(root, prepfile), terminus='N')
     construct_resdesclist_from_lib(residues_database)
 
     # copy the properties of HIS to another form of the HIS
-    residues_database.add_residue(short_name='HIS', residue=residues_database.get_residue('HIE'))
-    # residues_database.add_residue(short_name='HIP', residue=residues_database.get_residue('HIS'))
+    pprint(residues_database)
+    residues_database.add_residue(residues_database.get_residue('HIE', terminus=None).set_short_name('HIS'))
 
     return residues_database
 
