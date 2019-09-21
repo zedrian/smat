@@ -203,6 +203,7 @@ class ResidueDesc:
 
     def set_short_name(self, short_name: str):
         self.short_name = short_name
+        return self
 
 
 class PhysicalResidue:

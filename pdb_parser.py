@@ -59,7 +59,7 @@ def get_chain(structure: Structure) -> ChainDesc:
 
 def is_ligand(residue: PhysicalResidue) -> bool:
     if not residue.get_residue_desc().get_short_name() in database.get_amino_acids() + database.get_cofactors():
-        atoms = [a.get_atom_desc() for a in residue.get_atoms() if not a.get_name().startswith('H')]
+        atoms = [a.get_atom_desc() for a in residue.get_atoms() if not a.get_atom_desc().get_fullname().startswith('H')]
         if len(atoms) >= 6:
             return True
 

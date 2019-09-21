@@ -185,6 +185,9 @@ def get_residues_description() -> ResiduesDatabase:
     # copy the properties of HIS to another form of the HIS
     pprint(residues_database)
     residues_database.add_residue(residues_database.get_residue('HIE', terminus=None).set_short_name('HIS'))
+    # NOTE: is that correct to add the following residues?
+    residues_database.add_residue(residues_database.get_residue('HIE', terminus='C').set_short_name('HIS'))
+    residues_database.add_residue(residues_database.get_residue('HIE', terminus='N').set_short_name('HIS'))
 
     return residues_database
 

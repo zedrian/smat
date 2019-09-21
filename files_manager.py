@@ -61,7 +61,7 @@ def save_ligand_forces_to_file(forces: dict, results_folder: str, pdb_file: str)
 
 # write units to csv file for the visualisator
 def write_units_csv(units: list, results_folder: str, pdb_file: str):
-    with open(os.path.join(results_folder, f'units/{pdb_file[:-4]}.csv'), 'w') as file:
+    with open(os.path.join(results_folder, 'units', f'{pdb_file[:-4]}.csv'), 'w') as file:
         file.write('x,y,z,radius,rgb,atom_name,atom_type,residue_name\n')
         for unit in units:  # physical residue
             if unit is not None:
@@ -70,7 +70,7 @@ def write_units_csv(units: list, results_folder: str, pdb_file: str):
                         continue
                     else:
                         rgb = '000000'
-                        if atom.get_atom_desc().get_type()[0].upper() == 'C' and atom.get_type() != 'Cl':
+                        if atom.get_atom_desc().get_type()[0].upper() == 'C' and atom.get_atom_desc().get_type() != 'Cl':
                             rgb = 'FFFFCC'
                         elif atom.get_atom_desc().get_type()[0].upper() == 'N':
                             rgb = '3366FF'

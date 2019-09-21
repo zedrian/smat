@@ -50,7 +50,7 @@ class ChainDesc:
     def contains_ligands(self) -> bool:
         for residue in self.residues:
             if not residue.get_residue_desc().get_short_name() in database.get_amino_acids() + database.get_cofactors():
-                atoms = [a for a in residue.get_atoms() if not a.get_atom_desc().get_name().startswith('H')]
+                atoms = [a for a in residue.get_atoms() if not a.get_atom_desc().get_fullname().startswith('H')]
                 if len(atoms) >= 6:
                     return True
         return False
