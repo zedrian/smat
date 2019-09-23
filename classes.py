@@ -176,9 +176,10 @@ class ResidueDesc:
                       'VAL': 'V',
                       'CYM': 'C'}
 
-        if self.short_name != '':
+        if self.get_short_name() != '':
             try:
-                return amino_acids[self.short_name]
+                amino_acid_name = amino_acids[self.short_name]
+                return amino_acid_name
             except KeyError:
                 return None
         else:
@@ -233,10 +234,10 @@ class PhysicalResidue:
 
 
 class ResiduesDatabase:
-    def __init__(self, residues=list()):
+    def __init__(self, residues: list):
         self.residues = residues
-        self.amino_acids = self.construct_amino_acids_list()
-        self.cofactors = self.construct_cofactors_list()
+        self.amino_acids = list()
+        self.cofactors = list()
 
     def __repr__(self):
         return f'Residues: {self.residues}\n'
@@ -249,26 +250,36 @@ class ResiduesDatabase:
             if residue.get_short_name() == residue_short_name and residue.if_terminus() == terminus:
                 return residue
 
-    def construct_amino_acids_list(self) -> list:
+    def construct_amino_acids_list(self):
         amino_acids = list()
 
-        for residue in self.residues:
+        for residue in self.get_residues():
             if residue.get_amino_acid_letter() is not None:
                 amino_acids.append(residue.get_short_name())
 
-        return amino_acids
+        self.amino_acids = list(set(amino_acids))
 
-    def construct_cofactors_list(self) -> list:
+    def construct_cofactors_list(self):
         cofactors = list()
 
         for residue in self.residues:
             if residue.cofactor:
                 cofactors.append(residue.get_short_name())
 
-        return cofactors
+        self.cofactors = list(set(cofactors))
 
     def get_amino_acids(self) -> list:
         return self.amino_acids
 
     def get_cofactors(self) -> list:
         return self.cofactors
+
+    def get_residues(self) -> list:
+        return self.residues
+
+    def clone(self, original_resname: str, analogue_resname: str, terminus=None):
+        original = self.get_residue(original_resname, terminus)
+        analogue = ResidueDesc(short_name=analogue_resname, terminus=terminus, long_name=original.get_long_name(),
+                               atoms=original.get_atoms())
+
+        self.add_residue(analogue)

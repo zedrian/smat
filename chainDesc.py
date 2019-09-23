@@ -2,6 +2,7 @@ from uuid import UUID
 from Bio.PDB import Chain
 from classes import PhysicalAtom, PhysicalResidue
 from database_parser import database
+from pprint import pprint
 
 
 class ChainDesc:
@@ -14,18 +15,17 @@ class ChainDesc:
 
     def get_transformed_residues(self) -> list:   # list of Physical Residues
         transformed_residues = list()
+        residues = list(self.chain.get_residues())
 
-        for residue in self.chain.get_residues():  # Biopython Residue
-            index = residue.get_segid()
+        for residue in residues:  # Biopython Residue
+            index = residues.index(residue)
             terminus = None
-            if index == 1 or 'H1' in [a.get_id() for a in residue.get_atoms()]:
+            if index == 0:
                 terminus = 'N'
             elif 'OXT' in [a.get_id() for a in residue.get_atoms()]:
                 terminus = 'C'
 
             residue_desc = database.get_residue(residue.get_resname(), terminus=terminus)
-            if residue.get_resname == 'HIE':
-                print('HERE')
             physical_residue = PhysicalResidue(index=index, residue_desc=residue_desc)
             physical_atoms = list()
             for atom in residue.get_atoms():  # Biopython Atom!

@@ -131,6 +131,7 @@ def get_neighbor_atoms(chain: ChainDesc, ligand: PhysicalResidue) -> list:  # a 
 
     # collect chain atoms
     chain_atoms = list()
+
     for residue in chain.get_residues():  # physical residue
         # do not count atoms from ligand itself
         if residue.get_residue_desc().get_short_name() == ligand.get_residue_desc().get_short_name():
@@ -141,7 +142,7 @@ def get_neighbor_atoms(chain: ChainDesc, ligand: PhysicalResidue) -> list:  # a 
         if residue.get_residue_desc().get_short_name() not in database.get_amino_acids() + database.get_cofactors():
             continue
 
-        for atom in residue.chain.get_atoms():  # BioPython atom!!!!
+        for atom in residue.chain.get_atoms():  # BioPython atom!!!!   Set chain id to each physical residue
             chain_atoms.append(atom)
 
     neighbour_atoms = list()

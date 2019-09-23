@@ -15,7 +15,7 @@ def get_residues_description() -> ResiduesDatabase:
     data = read_csv('Database/Atoms_properties.csv', header=0, delimiter=';')
 
     # initiate database class object
-    residues_database = ResiduesDatabase()
+    residues_database = ResiduesDatabase(residues=list())
 
     # construct ResiduDesc objects from the prep file
     def construct_resdesclist_from_prep(residues_database: ResiduesDatabase, prepfile: str, terminus=None):
@@ -177,18 +177,21 @@ def get_residues_description() -> ResiduesDatabase:
             if prepfile != 'all_aminoct94.in' and prepfile != 'all_aminont94.in':  # these files only for terminus amino acids
                 construct_resdesclist_from_prep(residues_database, os.path.join(root, prepfile))
             elif prepfile == 'all_aminoct94.in':
-                print('C-terminus')
                 construct_resdesclist_from_prep(residues_database, os.path.join(root, prepfile), terminus='C')
             elif prepfile == 'all_aminont94.in':
                 construct_resdesclist_from_prep(residues_database, os.path.join(root, prepfile), terminus='N')
     construct_resdesclist_from_lib(residues_database)
 
-    # copy the properties of HIS to another form of the HIS
-    pprint(residues_database)
-    residues_database.add_residue(residues_database.get_residue('HIE', terminus=None).set_short_name('HIS'))
-    # NOTE: is that correct to add the following residues?
-    residues_database.add_residue(residues_database.get_residue('HIE', terminus='C').set_short_name('HIS'))
-    residues_database.add_residue(residues_database.get_residue('HIE', terminus='N').set_short_name('HIS'))
+    # copy the properties of HIE to another form of the HIS and from CYX to CYM
+    residues_database.clone('HIE', 'HIS', terminus=None)
+    residues_database.clone('HIE', 'HIS', terminus='C')
+    residues_database.clone('HIE', 'HIS', terminus='N')
+    residues_database.clone('CYX', 'CYM', terminus=None)
+    residues_database.clone('CYX', 'CYM', terminus='C')
+    residues_database.clone('CYX', 'CYM', terminus='N')
+
+    residues_database.construct_amino_acids_list()
+    residues_database.construct_cofactors_list()
 
     return residues_database
 
