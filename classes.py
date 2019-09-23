@@ -116,14 +116,15 @@ class ResidueDesc:
         self.long_name = long_name
         self.short_name = short_name
         self.atoms = atoms
-        self.amino_acid_letter = self.if_amino_acid(self.short_name)
-        self.cofactor = self.if_cofactor(self.short_name)
+        self.amino_acid_letter = self.if_amino_acid()
+        self.cofactor = self.if_cofactor()
         self.ids = ids
         self.terminus = terminus
 
     def __repr__(self):
         return f'Residue name: {self.long_name}\n' + \
             f'Residue short name: {self.short_name}\n' + \
+            f'Residue terminus: {self.terminus}\n' + \
             f'Residue atoms: {[x.get_type() for x in self.atoms]}'
 
     def get_long_name(self) -> str:
@@ -149,7 +150,7 @@ class ResidueDesc:
         return self.amino_acid_letter
 
     # define if the residue is amino acid
-    def if_amino_acid(self, short_name: str) -> str:
+    def if_amino_acid(self) -> str:
         amino_acids ={'ALA': 'A',
                       'ARG': 'R',
                       'ASN': 'N',
@@ -175,19 +176,19 @@ class ResidueDesc:
                       'VAL': 'V',
                       'CYM': 'C'}
 
-        if short_name != '':
+        if self.short_name != '':
             try:
-                return amino_acids[short_name]
+                return amino_acids[self.short_name]
             except KeyError:
                 return None
         else:
             return None
 
     # define if the residue is cofactor
-    def if_cofactor(self, short_name: str) -> bool:
+    def if_cofactor(self) -> bool:
         cofactors = ['GDP', 'GTP', 'ADP', 'ATP', 'FMN', 'FAD', 'NAD', 'HEM']
 
-        if short_name in cofactors:
+        if self.short_name in cofactors:
             return True
         else:
             return False

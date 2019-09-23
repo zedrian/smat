@@ -177,6 +177,7 @@ def get_residues_description() -> ResiduesDatabase:
             if prepfile != 'all_aminoct94.in' and prepfile != 'all_aminont94.in':  # these files only for terminus amino acids
                 construct_resdesclist_from_prep(residues_database, os.path.join(root, prepfile))
             elif prepfile == 'all_aminoct94.in':
+                print('C-terminus')
                 construct_resdesclist_from_prep(residues_database, os.path.join(root, prepfile), terminus='C')
             elif prepfile == 'all_aminont94.in':
                 construct_resdesclist_from_prep(residues_database, os.path.join(root, prepfile), terminus='N')

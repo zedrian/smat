@@ -18,12 +18,14 @@ class ChainDesc:
         for residue in self.chain.get_residues():  # Biopython Residue
             index = residue.get_segid()
             terminus = None
-            if index == 1:
+            if index == 1 or 'H1' in [a.get_id() for a in residue.get_atoms()]:
                 terminus = 'N'
             elif 'OXT' in [a.get_id() for a in residue.get_atoms()]:
                 terminus = 'C'
 
             residue_desc = database.get_residue(residue.get_resname(), terminus=terminus)
+            if residue.get_resname == 'HIE':
+                print('HERE')
             physical_residue = PhysicalResidue(index=index, residue_desc=residue_desc)
             physical_atoms = list()
             for atom in residue.get_atoms():  # Biopython Atom!
