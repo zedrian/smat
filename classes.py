@@ -1,5 +1,6 @@
 from uuid import uuid4, UUID
-from Bio.PDB import Atom, Residue
+from Bio.PDB.Atom import Atom
+from Bio.PDB.Residue import Residue
 
 
 class BoundingBox:
@@ -112,7 +113,7 @@ class PhysicalAtom:
 
 
 class ResidueDesc:
-    def __init__(self, short_name: str, atoms: list, long_name: str = None, ids=list(), terminus=None):
+    def __init__(self, short_name: str, atoms: list, long_name: str = None, ids=list(), terminus=None, deeper_check = False):
         self.long_name = long_name
         self.short_name = short_name
         self.atoms = atoms
@@ -120,11 +121,12 @@ class ResidueDesc:
         self.cofactor = self.if_cofactor()
         self.ids = ids
         self.terminus = terminus
+        self.deeper_check = deeper_check
 
     def __repr__(self):
         return f'Residue name: {self.long_name}\n' + \
             f'Residue short name: {self.short_name}\n' + \
-            f'Residue terminus: {self.terminus}\n' + \
+            f'Terminus: {self.terminus}\n' + \
             f'Residue atoms: {[x.get_type() for x in self.atoms]}'
 
     def get_long_name(self) -> str:
@@ -143,7 +145,7 @@ class ResidueDesc:
             if atom.get_fullname() == atom_fullname:
                 return atom
 
-        print(f'ERROR: attempt to get atom {atom_fullname} from residue {self.long_name}')
+        print(f'ERROR: attempt to get atom {atom_fullname} from residue {self.get_short_name()}')
         return None
 
     def get_amino_acid_letter(self) -> str:
@@ -207,6 +209,12 @@ class ResidueDesc:
         self.short_name = short_name
         return self
 
+    def set_deeper_check(self, set: bool):
+        self.deeper_check = set
+
+    def check_deeper(self) -> bool:
+        return self.deeper_check
+
 
 class PhysicalResidue:
     def __init__(self, index: int, residue_desc: ResidueDesc, atoms=list()):
@@ -243,12 +251,37 @@ class ResiduesDatabase:
         return f'Residues: {self.residues}\n'
 
     def add_residue(self, residue: ResidueDesc):
+        for res in self.residues:
+            if res.get_short_name() == residue.get_short_name() and res.if_terminus() == residue.if_terminus():
+                print(f'Warning: found residues with equal short names - {res.get_short_name()}')
+                res.set_deeper_check(True)
+                residue.set_deeper_check(True)
         self.residues.append(residue)
 
-    def get_residue(self, residue_short_name: str, terminus=None) -> ResidueDesc:
-        for residue in self.residues:
-            if residue.get_short_name() == residue_short_name and residue.if_terminus() == terminus:
-                return residue
+    def get_residue(self, residue, terminus=None) -> ResidueDesc:
+        res_to_return = None
+        for res in self.residues:
+            if isinstance(residue, Residue):
+                if res.get_short_name() == residue.get_resname() and res.if_terminus() == terminus:
+                    if not res.check_deeper():
+                        res_to_return = res
+                    elif [a.get_fullname() for a in res.get_atoms()] == [a.get_id() for a in residue.get_atoms()]:
+                        res_to_return = res
+                    else:
+                        continue
+            elif isinstance(residue, ResidueDesc):
+                if res.get_short_name() == residue.get_short_name() and res.if_terminus() == residue.if_terminus():
+                    if not res.check_deeper():
+                        res_to_return = res
+                    elif [a.get_fullname() for a in res.get_atoms()] == [a.get_fullname() for a in residue.get_atoms()]:
+                        res_to_return = res
+                    else:
+                        continue
+
+        if res_to_return is not None:
+            return res_to_return
+        else:
+            print(f'ERROR: attempt to get residue {residue.get_resname()} from database')  # because only bio python residue coulb not be found
 
     def construct_amino_acids_list(self):
         amino_acids = list()
@@ -277,9 +310,15 @@ class ResiduesDatabase:
     def get_residues(self) -> list:
         return self.residues
 
-    def clone(self, original_resname: str, analogue_resname: str, terminus=None):
-        original = self.get_residue(original_resname, terminus)
-        analogue = ResidueDesc(short_name=analogue_resname, terminus=terminus, long_name=original.get_long_name(),
-                               atoms=original.get_atoms())
+    def clone(self, original_short_name: str, analogue_resname: str, terminus=None):
+        # impossible to clone residues with equal short names and terminus
+
+        origin = None
+        for residue in self.residues:
+            if residue.get_short_name() == original_short_name and residue.if_terminus == terminus:
+                origin = residue
+        analogue = ResidueDesc(short_name=analogue_resname, terminus=terminus, long_name=origin.get_long_name(),
+                               atoms=origin.get_atoms())
+        print(origin)
 
         self.add_residue(analogue)

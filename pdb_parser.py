@@ -117,7 +117,7 @@ def get_ligand(chain: ChainDesc) -> PhysicalResidue:
             closest_ligand_to_center_of_mass_squared_distance = squared_distance
 
     # show result
-    print(f'ligand selected: {database.get_residue(closest_ligand.get_residue_desc().get_short_name())} distance to chain CoM: '
+    print(f'ligand selected: {closest_ligand.get_residue_desc().get_short_name()} distance to chain CoM: '
           f'{sqrt(closest_ligand_to_center_of_mass_squared_distance)})')
 
     return closest_ligand
@@ -145,7 +145,7 @@ def get_neighbor_atoms(chain: ChainDesc, ligand: PhysicalResidue) -> list:  # a 
         if residue.get_residue_desc().get_short_name() not in database.get_amino_acids() + database.get_cofactors():
             continue
 
-        for atom in bio_residues[residue.get_index()].get_atoms():  # BioPython atom!!!!   Set chain id to each physical residue
+        for atom in bio_residues[residue.get_index()].get_atoms():  # BioPython atom!!!!
             chain_atoms.append(atom)
 
     neighbour_atoms = list()
@@ -160,7 +160,7 @@ def get_neighbor_atoms(chain: ChainDesc, ligand: PhysicalResidue) -> list:  # a 
                     terminus = 'N'
                 elif 'OXT' in [a.get_id() for a in neighbour.get_parent().get_atoms()]:
                     terminus = 'C'
-                atom_desc = database.get_residue(neighbour.get_parent().get_resname(), terminus).get_atom(neighbour.get_id())
+                atom_desc = database.get_residue(neighbour.get_parent(), terminus).get_atom(neighbour.get_id())
                 physical_atom = PhysicalAtom(bio_atom=neighbour, atom_desc=atom_desc, coords=neighbour.get_coord())
                 neighbour_atoms.append(physical_atom)
     return neighbour_atoms
@@ -174,15 +174,3 @@ def get_bounding_box(atoms: list) -> BoundingBox:
 
     return box
 
-
-# # get atoms coordinates of object of class Residue (Bio python) and set them to Residues database
-# def fill_atoms_coords_in_residue(residue: PhysicalResidue):
-#     # construct object of ResidueDesc class and fill atoms coordinates
-#     ligand = database.get_residue(residue_short_name=residue.get_residue_desc().get_short_name(),
-#                                   terminus=residue.get_residue_desc().if_terminus())  # ResidueDesc
-#     for res_desc_atom in ligand.get_atoms():  # AtomDesc
-#         for bio_atom in residue.get_atoms():
-#             if res_desc_atom.get_fullname == bio_atom.get_name():
-#                 res_desc_atom.x = bio_atom.get_coord()[0]
-#                 res_desc_atom.y = bio_atom.get_coord()[1]
-#                 res_desc_atom.z = bio_atom.get_coord()[2]

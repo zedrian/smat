@@ -25,15 +25,6 @@ def show_progress(label, width, percentage):
     stdout.flush()
 
 
-# def get_van_der_walls_radius(atom: PhysicalAtom) -> float:
-#     residue_name = atom.get_atom_desc().get_parent_name()
-#
-#     residue = database.get_residue(residue_name, terminus=None)  # no matter if it is terminus or not - radius is the same
-#     atom_description = residue.get_atom(atom.get_name())
-#
-#     return atom_description.get_radius()
-
-
 def get_length(v: list) -> float:
     return sqrt(v[0]**2 + v[1]**2 + v[2]**2)
 
@@ -205,7 +196,7 @@ def calculate_forces(ligand_atoms: list, neighbour_atoms: list, dielectric_const
             distance = get_length(position_delta)
             force_direction = get_direction(ligand_atom_position, protein_atom_position)
 
-            if distance != 0.0:
+            if distance != 0.0 and distance < 10.1:
                 # calculate coulomb force
                 coulomb_force_module = (ligand_atom_charge * protein_atom_charge) / (4 * pi * dielectric_const * distance**2)
 
@@ -297,7 +288,10 @@ if __name__ == '__main__':
             ligand_center_of_mass = get_center_of_mass(ligand)
 
             # write residues that need to be visualised to csv file
-            units_ids = database.get_residue(options.units, terminus=None).get_ids()  # get physical residues ids # todo make it possible to save terminus aa
+            units_collection = [u for u in chain.get_residues() if u.get_resname() in options.units]  # bio python residues
+            units_ids = list()
+            for collection in units_collection:
+                units_ids = units_ids + database.get_residue(collection, terminus=None).get_ids()   # get physical residues ids # todo make it possible to save terminus aa
             units = [chain.get_residue_by_id(uid) for uid in units_ids]  # get physical residues
             units.append(ligand)  # add ligand (already a physical residue) to units
             write_units_csv(units, results_folder, pdb_file)
@@ -313,11 +307,11 @@ if __name__ == '__main__':
             momenta[pdb_file] = momentum
 
             accumulated_force = calculate_accumulated_force(forces)
-            print(f'accumulated force = {forces}')
+            # print(f'accumulated force = {forces}')
             accumulated_forces[pdb_file] = accumulated_force
 
             grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, ligand_center_of_mass, ligand_atoms)
-            print('grid coordinates calculated')
+            # print('grid coordinates calculated')
             print(f'grid length: {len(grid_coordinates)}')
 
             active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms)

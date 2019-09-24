@@ -2,7 +2,6 @@ from uuid import UUID
 from Bio.PDB import Chain
 from classes import PhysicalAtom, PhysicalResidue
 from database_parser import database
-from pprint import pprint
 
 
 class ChainDesc:
@@ -25,13 +24,16 @@ class ChainDesc:
             elif 'OXT' in [a.get_id() for a in residue.get_atoms()]:
                 terminus = 'C'
 
-            residue_desc = database.get_residue(residue.get_resname(), terminus=terminus)
+            residue_desc = database.get_residue(residue, terminus=terminus)
             physical_residue = PhysicalResidue(index=index, residue_desc=residue_desc)
             physical_atoms = list()
             for atom in residue.get_atoms():  # Biopython Atom!
                 atom_desc = residue_desc.get_atom(atom_fullname=atom.get_id())  # get atom description for physical atom from database
                 physical_atom = PhysicalAtom(coords=atom.get_coord(), atom_desc=atom_desc, bio_atom=atom)  # generate object
-                atom_desc.add_id(physical_atom.get_id())
+                try:
+                    atom_desc.add_id(physical_atom.get_id())
+                except AttributeError:
+                    print(residue_desc)
                 physical_atoms.append(physical_atom)
 
             physical_residue.atoms = physical_atoms
@@ -60,9 +62,9 @@ class ChainDesc:
     def get_shortened_sequence(self) -> str:
         line = ''
         for residue in self.chain.get_residues():
-            if database.get_residue(residue.get_resname()).get_amino_acid_letter() is None:
+            if database.get_residue(residue).get_amino_acid_letter() is None:
                 continue
-            line += database.get_residue(residue.get_resname()).get_amino_acid_letter()
+            line += database.get_residue(residue).get_amino_acid_letter()
         return line
 
     def get_chain_length(self) -> int:

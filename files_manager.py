@@ -12,6 +12,7 @@ def parse_input_command():
     parser.add_option("-r", "--remaster", dest="remaster", default=False, help="remaster database (not realized yet)")  # todo generate database ones and write it to file and remaster each time it is necessary
     parser.add_option("-s", "--step", dest="step", help="the step of the grid", default=1.0, metavar="STEP")
     parser.add_option("-u", "--units", dest="units", help="residues to be saved", metavar="UNITS", default=None)
+    parser.add_option("-k", "--dielectric_const", dest="diel_const", help="dielectric constant for inter-protein environment",  metavar="DIEL_CONST", default=10.0)
 
     return parser.parse_args()
 
