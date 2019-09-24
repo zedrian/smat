@@ -99,7 +99,12 @@ def write_units_csv(units: list, results_folder: str, pdb_file: str):
 
 # write calculated potentials to file
 def save_potentials_to_file(active_site_points: list, results_folder: str, file_name: str):
-    with open(os.path.join(results_folder, f'potentials/{file_name[:-4]}.csv'), 'w') as file:
+
+    potentials_folder = os.path.join(results_folder, 'potentials')
+    if not os.path.exists(potentials_folder):
+        os.makedirs(potentials_folder)
+
+    with open(os.path.join(results_folder, f'{file_name[:-4]}.csv'), 'w') as file:
         file.write('x,y,z,protein_coulomb,protein_lennard_jones,ligand_coulomb,ligand_lennard_jones\n')
         for point in active_site_points:
             file.write(

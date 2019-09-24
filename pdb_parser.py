@@ -154,16 +154,20 @@ def get_neighbor_atoms(chain: ChainDesc, ligand: PhysicalResidue) -> list:  # a 
         current_neighbours = search.search(atom.get_coords(), 10.0)
         for neighbour in current_neighbours:  # BioPython atom!!!!
             if neighbour not in neighbour_atoms:
+                neighbour_atoms.append(neighbour)
 
-                terminus = None
-                if neighbour.get_parent().get_segid() == 1:
-                    terminus = 'N'
-                elif 'OXT' in [a.get_id() for a in neighbour.get_parent().get_atoms()]:
-                    terminus = 'C'
-                atom_desc = database.get_residue(neighbour.get_parent(), terminus).get_atom(neighbour.get_id())
-                physical_atom = PhysicalAtom(bio_atom=neighbour, atom_desc=atom_desc, coords=neighbour.get_coord())
-                neighbour_atoms.append(physical_atom)
-    return neighbour_atoms
+    neighbour_physical_atoms = list()
+    for neighbour in neighbour_atoms:
+        terminus = None
+        if neighbour.get_parent().get_id()[1] == 1:
+            terminus = 'N'
+        elif 'OXT' in [a.get_id() for a in neighbour.get_parent().get_atoms()]:
+            terminus = 'C'
+        atom_desc = database.get_residue(neighbour.get_parent(), terminus).get_atom(neighbour.get_id())
+        physical_atom = PhysicalAtom(bio_atom=neighbour, atom_desc=atom_desc, coords=neighbour.get_coord())
+        neighbour_physical_atoms.append(physical_atom)
+
+    return neighbour_physical_atoms
 
 
 def get_bounding_box(atoms: list) -> BoundingBox:
