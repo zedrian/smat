@@ -30,10 +30,7 @@ class ChainDesc:
             for atom in residue.get_atoms():  # Biopython Atom!
                 atom_desc = residue_desc.get_atom(atom_fullname=atom.get_id())  # get atom description for physical atom from database
                 physical_atom = PhysicalAtom(coords=atom.get_coord(), atom_desc=atom_desc, bio_atom=atom)  # generate object
-                try:
-                    atom_desc.add_id(physical_atom.get_id())
-                except AttributeError:
-                    print(residue_desc)
+                atom_desc.add_id(physical_atom.get_id())
                 physical_atoms.append(physical_atom)
 
             physical_residue.atoms = physical_atoms

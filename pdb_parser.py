@@ -58,7 +58,7 @@ def get_chain(structure: Structure) -> ChainDesc:
 
 
 def is_ligand(residue: PhysicalResidue) -> bool:
-    if not residue.get_residue_desc().get_short_name() in database.get_amino_acids() + database.get_cofactors():
+    if not residue.get_residue_desc().get_short_name() in database.get_amino_acids() + database.get_cofactors() or residue.get_residue_desc().check_deeper():
         atoms = [a.get_atom_desc() for a in residue.get_atoms() if not a.get_atom_desc().get_fullname().startswith('H')]
         if len(atoms) >= 6:
             return True
@@ -144,7 +144,10 @@ def get_neighbor_atoms(chain: ChainDesc, ligand: PhysicalResidue) -> list:  # a 
         # TODO: refactor
         if residue.get_residue_desc().get_short_name() not in database.get_amino_acids() + database.get_cofactors():
             continue
+        elif residue.get_residue_desc().check_deeper():
+            continue
 
+        print(f'{residue.get_index()}')
         for atom in bio_residues[residue.get_index()].get_atoms():  # BioPython atom!!!!
             chain_atoms.append(atom)
 

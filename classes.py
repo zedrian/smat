@@ -189,7 +189,7 @@ class ResidueDesc:
 
     # define if the residue is cofactor
     def if_cofactor(self) -> bool:
-        cofactors = ['GDP', 'GTP', 'ADP', 'ATP', 'FMN', 'FAD', 'NAD', 'HEM']
+        cofactors = ['GDP', 'GTP', 'ADP', 'ATP', 'FMN', 'FAD', 'NAD', 'HEM', 'NP2', 'NP3']
 
         if self.short_name in cofactors:
             return True
@@ -319,6 +319,5 @@ class ResiduesDatabase:
                 origin = residue
         analogue = ResidueDesc(short_name=analogue_resname, terminus=terminus, long_name=origin.get_long_name(),
                                atoms=origin.get_atoms())
-        print(origin)
 
         self.add_residue(analogue)
