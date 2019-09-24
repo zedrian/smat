@@ -315,7 +315,7 @@ class ResiduesDatabase:
 
         origin = None
         for residue in self.residues:
-            if residue.get_short_name() == original_short_name and residue.if_terminus == terminus:
+            if residue.get_short_name() == original_short_name and residue.if_terminus() == terminus:
                 origin = residue
         analogue = ResidueDesc(short_name=analogue_resname, terminus=terminus, long_name=origin.get_long_name(),
                                atoms=origin.get_atoms())
