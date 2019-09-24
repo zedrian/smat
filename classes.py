@@ -1,5 +1,5 @@
 from uuid import uuid4, UUID
-from Bio.PDB import Atom
+from Bio.PDB import Atom, Residue
 
 
 class BoundingBox:

@@ -15,12 +15,12 @@ class ChainDesc:
 
     def get_transformed_residues(self) -> list:   # list of Physical Residues
         transformed_residues = list()
-        residues = list(self.chain.get_residues())
+        residues = self.chain.get_residues()
 
         for residue in residues:  # Biopython Residue
-            index = residues.index(residue)
+            index = residue.get_id()[1]
             terminus = None
-            if index == 0:
+            if index == 1:
                 terminus = 'N'
             elif 'OXT' in [a.get_id() for a in residue.get_atoms()]:
                 terminus = 'C'

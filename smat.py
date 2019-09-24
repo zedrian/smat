@@ -81,7 +81,7 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list) -> bool
     # check whether center-to-point ray intersects any van der Waals radius of atoms
     for atom in atoms:  # physical atom
         radius = atom.get_atom_desc().get_radius()
-        if ray_intersects_sphere(center, point, atom.coord, radius):
+        if ray_intersects_sphere(center, point, atom.get_coords(), radius):
             return False
 
     return True
@@ -205,23 +205,25 @@ def calculate_forces(ligand_atoms: list, neighbour_atoms: list, dielectric_const
             distance = get_length(position_delta)
             force_direction = get_direction(ligand_atom_position, protein_atom_position)
 
-            # calculate coulomb force
-            coulomb_force_module = (ligand_atom_charge * protein_atom_charge) / (4 * pi * dielectric_const * distance**2)
-            lennard_force_module = 0.0
-            if distance < ligand_atom_radius * 4.0:
-                # calculate the force according https://www.ks.uiuc.edu/Training/Workshop/SanFrancisco/lectures/Wednesday-ForceFields.pdf page 14
-                lennard_force_module = sqrt(ligand_atom_edep*protein_atom_edep)*(((ligand_atom_radius+protein_atom_radius)/distance)**12 - 2*((ligand_atom_radius+protein_atom_radius)/distance)**6)
+            if distance != 0.0:
+                # calculate coulomb force
+                coulomb_force_module = (ligand_atom_charge * protein_atom_charge) / (4 * pi * dielectric_const * distance**2)
 
-            force_module = coulomb_force_module + lennard_force_module
-            force = [force_direction[0] * force_module,
-                             force_direction[1] * force_module,
-                             force_direction[2] * force_module]
-            integral_force = [integral_coulomb_force[0] + force[0],
-                              integral_coulomb_force[1] + force[1],
-                              integral_coulomb_force[2] + force[2]]
+                lennard_force_module = 0.0
+                if distance < ligand_atom_radius * 4.0:
+                    # calculate the force according https://www.ks.uiuc.edu/Training/Workshop/SanFrancisco/lectures/Wednesday-ForceFields.pdf page 14
+                    lennard_force_module = sqrt(ligand_atom_edep*protein_atom_edep)*(((ligand_atom_radius+protein_atom_radius)/distance)**12 - 2*((ligand_atom_radius+protein_atom_radius)/distance)**6)
+
+                force_module = coulomb_force_module + lennard_force_module
+                force = [force_direction[0] * force_module,
+                                 force_direction[1] * force_module,
+                                 force_direction[2] * force_module]
+                integral_force = [integral_coulomb_force[0] + force[0],
+                                  integral_coulomb_force[1] + force[1],
+                                  integral_coulomb_force[2] + force[2]]
 
         # save to dictionary
-        forces[ligand_atom.get_atom_desc().get_name()] = (ligand_atom_position, integral_force)
+        forces[ligand_atom.get_atom_desc().get_fullname()] = (ligand_atom_position, integral_force)
 
         progress += 1.0 / ligand_atom_count
     show_progress('calculating forces: ', 40, 1.0)

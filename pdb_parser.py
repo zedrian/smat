@@ -132,6 +132,9 @@ def get_neighbor_atoms(chain: ChainDesc, ligand: PhysicalResidue) -> list:  # a 
     # collect chain atoms
     chain_atoms = list()
 
+    # get bio python residues of the chain
+    bio_residues = list(chain.chain.get_residues())
+
     for residue in chain.get_residues():  # physical residue
         # do not count atoms from ligand itself
         if residue.get_residue_desc().get_short_name() == ligand.get_residue_desc().get_short_name():
@@ -142,7 +145,7 @@ def get_neighbor_atoms(chain: ChainDesc, ligand: PhysicalResidue) -> list:  # a 
         if residue.get_residue_desc().get_short_name() not in database.get_amino_acids() + database.get_cofactors():
             continue
 
-        for atom in residue.chain.get_atoms():  # BioPython atom!!!!   Set chain id to each physical residue
+        for atom in bio_residues[residue.get_index()].get_atoms():  # BioPython atom!!!!   Set chain id to each physical residue
             chain_atoms.append(atom)
 
     neighbour_atoms = list()
@@ -158,7 +161,7 @@ def get_neighbor_atoms(chain: ChainDesc, ligand: PhysicalResidue) -> list:  # a 
                 elif 'OXT' in [a.get_id() for a in neighbour.get_parent().get_atoms()]:
                     terminus = 'C'
                 atom_desc = database.get_residue(neighbour.get_parent().get_resname(), terminus).get_atom(neighbour.get_id())
-                physical_atom = PhysicalAtom(bio_atom=neighbour, atom_desc=atom_desc)
+                physical_atom = PhysicalAtom(bio_atom=neighbour, atom_desc=atom_desc, coords=neighbour.get_coord())
                 neighbour_atoms.append(physical_atom)
     return neighbour_atoms
 
@@ -167,7 +170,7 @@ def get_bounding_box(atoms: list) -> BoundingBox:
     box = BoundingBox()
 
     for atom in atoms:  # physical atom
-        box.store_point(atom.get_coords[0], atom.get_coords[1], atom.get_coords[2])
+        box.store_point(atom.get_coords()[0], atom.get_coords()[1], atom.get_coords()[2])
 
     return box
 
