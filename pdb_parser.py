@@ -147,8 +147,7 @@ def get_neighbor_atoms(chain: ChainDesc, ligand: PhysicalResidue) -> list:  # a 
         elif residue.get_residue_desc().check_deeper():
             continue
 
-        print(f'{residue.get_index()}')
-        for atom in bio_residues[residue.get_index()].get_atoms():  # BioPython atom!!!!
+        for atom in bio_residues[residue.get_index() - 1].get_atoms():  # BioPython atom!!!!
             chain_atoms.append(atom)
 
     neighbour_atoms = list()

@@ -129,7 +129,7 @@ def calculate_potential(point: list, atoms: list) -> (float, float):
     for atom in atoms:  # physical atom
         # calculate Coulomb potential
         charge = atom.get_atom_desc().get_charge()
-        distance = get_length(numpy.subtract(point, atom.get_coord()))
+        distance = get_length(numpy.subtract(point, atom.get_coords()))
 
         dielectric_const = 10
         coulomb_potential = charge / (4 * pi * dielectric_const * distance)
