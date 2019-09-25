@@ -89,31 +89,43 @@ def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_
     show_progress('potential grid calculation: ', 80, float(point_index)/float(total_point_count))
     x = bounding_box.min_x
     while x < bounding_box.max_x:
+        column = list()
         y = bounding_box.min_y
         while y < bounding_box.max_y:
+            row = list()
             z = bounding_box.min_z
             while z < bounding_box.max_z:
                 # do stuff
                 current_point = [x, y, z]
                 if point_belongs_to_active_site(current_point, neighbour_atoms, ligand_center_of_mass):
-                    grid_coordinates.append(current_point)
+                    row.append(current_point)
+                else:
+                    row.append(None)
 
                 point_index += 1
                 show_progress('potential grid calculation: ', 80, float(point_index) / float(total_point_count))
 
                 z += step
 
+            column.append(row)
             y += step
 
+        grid_coordinates.append(column)
         x += step
 
     for atom in ligand_atoms:  # physical atoms
         coords = atom.get_coords()
-        for point in grid_coordinates:
-            if get_length(numpy.subtract(point, coords)) <= atom.get_atom_desc().get_radius():
-                grid_coordinates.remove(point)
+        for column_index in range(len(grid_coordinates)):
+            column = grid_coordinates[column_index]
+            for row_index in range(len(column)):
+                row = column[row_index]
+                for point_index in range(len(row)):
+                    point = row[point_index]
+                    if point is not None:
+                        if get_length(numpy.subtract(point, coords)) <= atom.get_atom_desc().get_radius():
+                            grid_coordinates[column_index][row_index][point_index] = None
+
     show_progress('potential grid calculation: ', 80, 1.0)
-    print(grid_coordinates)
     return grid_coordinates
 
 
@@ -158,16 +170,19 @@ def construct_active_site_in_potentials_form(grid_coordinates: list, protein_ato
 
     active_site_points = list()
 
-    for point in grid_coordinates:
-        protein_coulomb_potential, protein_lennard_jones_energy = calculate_potential(point, protein_atoms)
-        ligand_coulomb_potential, ligand_lennard_jones_energy = calculate_potential(point, ligand_atoms)
-        if not isnan(protein_lennard_jones_energy):
-            if ligand_lennard_jones_energy != 0 and ligand_lennard_jones_energy < 10.0:
-                active_site_points.append(
-                    {'coordinates': point, 'protein_coulomb': protein_coulomb_potential, f'protein_lennard_jones': protein_lennard_jones_energy,
-                     'ligand_coulomb': ligand_coulomb_potential, 'ligand_lennard_jones': ligand_lennard_jones_energy})
-        else:
-            print(point)
+    for column in grid_coordinates:
+        for row in column:
+            for point in row:
+                if point is not None:
+                    protein_coulomb_potential, protein_lennard_jones_energy = calculate_potential(point, protein_atoms)
+                    ligand_coulomb_potential, ligand_lennard_jones_energy = calculate_potential(point, ligand_atoms)
+                    if not isnan(protein_lennard_jones_energy):
+                        if ligand_lennard_jones_energy != 0 and ligand_lennard_jones_energy < 10.0:
+                            active_site_points.append(
+                                {'coordinates': point, 'protein_coulomb': protein_coulomb_potential, f'protein_lennard_jones': protein_lennard_jones_energy,
+                                'ligand_coulomb': ligand_coulomb_potential, 'ligand_lennard_jones': ligand_lennard_jones_energy})
+                    else:
+                        print(point)
     print('potentials calculated')
 
     return active_site_points
@@ -313,13 +328,12 @@ if __name__ == '__main__':
             accumulated_forces[pdb_file] = accumulated_force
 
             grid_coordinates = get_potential_grid_coordinates(step, neighbour_atoms, bounding_box, ligand_center_of_mass, ligand_atoms)
-            # print('grid coordinates calculated')
-            print(f'grid length: {len(grid_coordinates)}')
+            print('grid coordinates calculated')
 
             active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms)
             save_potentials_to_file(active_site_points, results_folder, pdb_file)
 
-
+            exit()
             file_index += 1.0 / file_count
 
     write_forces(results_folder, accumulated_forces)
