@@ -181,7 +181,6 @@ def calculate_forces(ligand_atoms: list, neighbour_atoms: list, dielectric_const
         show_progress('calculating forces: ', 40, progress)
         integral_force = [0, 0, 0]
         integral_coulomb_force = [0, 0, 0]
-        integral_lennard_force = [0, 0, 0]
         # TODO: refactor
         ligand_atom_charge = ligand_atom.get_atom_desc().get_charge()
         ligand_atom_edep = ligand_atom.get_atom_desc().get_edep()
