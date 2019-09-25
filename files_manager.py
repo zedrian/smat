@@ -10,9 +10,9 @@ def parse_input_command():
     parser.add_option("-i", "--file", dest="filename", help="input file to analyze (not realized yet)", metavar="FILE")  # todo make possible to run for 1 file
     parser.add_option("-f", "--folder", dest="folder", help="input folder with data", metavar="FOLDER")
     parser.add_option("-r", "--remaster", dest="remaster", default=False, help="remaster database (not realized yet)")  # todo generate database ones and write it to file and remaster each time it is necessary
-    parser.add_option("-s", "--step", dest="step", help="the step of the grid", default=1.0, metavar="STEP")
-    parser.add_option("-u", "--units", dest="units", help="residues to be saved", metavar="UNITS", default=None)
-    parser.add_option("-k", "--dielectric_const", dest="diel_const", help="dielectric constant for inter-protein environment",  metavar="DIEL_CONST", default=10.0)
+    parser.add_option("-s", "--step", dest="step", help="the step of the grid", default=1.0, metavar="STEP", type="float")
+    parser.add_option("-u", "--units", dest="units", help="residues to be saved", metavar="UNITS", default='', type="str")
+    parser.add_option("-k", "--dielectric_const", dest="diel_const", help="dielectric constant for inter-protein environment",  metavar="DIEL_CONST", default=10.0, type="float")
 
     return parser.parse_args()
 
@@ -104,7 +104,7 @@ def save_potentials_to_file(active_site_points: list, results_folder: str, file_
     if not os.path.exists(potentials_folder):
         os.makedirs(potentials_folder)
 
-    with open(os.path.join(results_folder, f'{file_name[:-4]}.csv'), 'w') as file:
+    with open(os.path.join(potentials_folder, f'{file_name[:-4]}.csv'), 'w') as file:
         file.write('x,y,z,protein_coulomb,protein_lennard_jones,ligand_coulomb,ligand_lennard_jones\n')
         for point in active_site_points:
             file.write(

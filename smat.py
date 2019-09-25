@@ -253,7 +253,7 @@ def calculate_accumulated_force(forces: dict) -> list:
 if __name__ == '__main__':
 
     options, args = parse_input_command()
-    if options.units is None:
+    if options.units == '':
         options.units = list()
     else:
         options.units = list(options.units)
@@ -292,11 +292,9 @@ if __name__ == '__main__':
             ligand_center_of_mass = get_center_of_mass(ligand)
 
             # write residues that need to be visualised to csv file
-            units_collection = [u for u in chain.get_residues() if u.get_residue_desc().get_short_name() in options.units]  # bio python residues
-            units_ids = list()
-            for collection in units_collection:
-                units_ids = units_ids + database.get_residue(collection, terminus=None).get_ids()   # get physical residues ids # todo make it possible to save terminus aa
-            units = [chain.get_residue_by_id(uid) for uid in units_ids]  # get physical residues
+            units_short_names = ''.join(options.units).split(',')
+            print(units_short_names)
+            units = [u for u in chain.get_residues() if u.get_residue_desc().get_short_name() in units_short_names]  # physical residues
             units.append(ligand)  # add ligand (already a physical residue) to units
             write_units_csv(units, results_folder, pdb_file)
 
