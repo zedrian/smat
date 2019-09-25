@@ -113,6 +113,7 @@ def get_potential_grid_coordinates(step: float, neighbour_atoms: list, bounding_
             if get_length(numpy.subtract(point, coords)) <= atom.get_atom_desc().get_radius():
                 grid_coordinates.remove(point)
     show_progress('potential grid calculation: ', 80, 1.0)
+    print(grid_coordinates)
     return grid_coordinates
 
 
@@ -317,6 +318,7 @@ if __name__ == '__main__':
 
             active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms)
             save_potentials_to_file(active_site_points, results_folder, pdb_file)
+
 
             file_index += 1.0 / file_count
 
