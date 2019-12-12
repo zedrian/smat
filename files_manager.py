@@ -68,7 +68,7 @@ def write_units_csv(units: list, results_folder: str, pdb_file: str):
         os.makedirs(units_folder)
 
     with open(os.path.join(units_folder, f'{pdb_file[:-4]}.csv'), 'w') as file:
-        file.write('x,y,z,radius,rgb,atom_name,atom_type,residue_name\n')
+        file.write('x,y,z,radius,rgb,atom_name,atom_type,residue_name,charge\n')
         for unit in units:  # physical residue
             if unit is not None:
                 for atom in unit.get_atoms():  # physical atom
@@ -92,7 +92,7 @@ def write_units_csv(units: list, results_folder: str, pdb_file: str):
                             rgb = '996600'
                         line = f'{atom.get_x()},{atom.get_y()},{atom.get_z()},{atom.get_atom_desc().get_radius()/3},' +\
                             f'{rgb},{atom.get_atom_desc().get_fullname()},' + \
-                            f'{atom.get_atom_desc().get_type()},{atom.get_atom_desc().get_parent_name()}\n'
+                            f'{atom.get_atom_desc().get_type()},{atom.get_atom_desc().get_parent_name()},{atom.get_atom_desc().get_charge()}\n'
                         file.write(line)
         file.close()
 

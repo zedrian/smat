@@ -68,6 +68,8 @@ def point_belongs_to_active_site(point: list, atoms: list, center: list) -> bool
     distance = get_length(numpy.subtract(point, center))
     if distance > max_distance_from_center:
         return False
+    else:
+        return True  # this hack allows points inside neighbour atoms
 
     # check whether center-to-point ray intersects any van der Waals radius of atoms
     for atom in atoms:  # physical atom
