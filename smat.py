@@ -145,7 +145,7 @@ def calculate_potential(point: list, atoms: list) -> (float, float):
         distance = get_length(numpy.subtract(point, atom.get_coords()))
 
         dielectric_const = 10
-        coulomb_potential = charge / (4 * pi * dielectric_const * distance)
+        coulomb_potential = float(charge) / (4 * pi * dielectric_const * distance)
         total_coulomb_potential += coulomb_potential
 
         # check whether we should calculate Lennard-Jones potential
@@ -213,7 +213,7 @@ def calculate_forces(ligand_atoms: list, neighbour_atoms: list, dielectric_const
 
             if distance != 0.0 and distance < 10.1:
                 # calculate coulomb force
-                coulomb_force_module = (ligand_atom_charge * protein_atom_charge) / (4 * pi * dielectric_const * distance**2)
+                coulomb_force_module = (float(ligand_atom_charge) * float(protein_atom_charge)) / (4.0 * float(pi) * dielectric_const * float(distance)**2)
 
                 lennard_force_module = 0.0
                 if distance < ligand_atom_radius * 4.0:
@@ -333,7 +333,6 @@ if __name__ == '__main__':
             active_site_points = construct_active_site_in_potentials_form(grid_coordinates, neighbour_atoms, ligand_atoms)
             save_potentials_to_file(active_site_points, results_folder, pdb_file)
 
-            exit()
             file_index += 1.0 / file_count
 
     write_forces(results_folder, accumulated_forces)
