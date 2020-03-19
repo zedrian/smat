@@ -2724,6 +2724,26 @@ IMPROPER
   C20  C24  C25  H32
 
 DONE
+HOH
+
+ HOH   INT     1
+ CORR NOMI DU   BEG
+   0.00000
+       1 DUMM   DU    M    0   -1   -2    0.0000    0.0000    0.0000 0.000
+    2 DUMM   DU    M    1    0   -1    1.4490    0.0000    0.0000 0.000
+    3 DUMM   DU    M    2    1    0    1.5220  111.1000    0.0000 0.000
+    4 O      O     M    3    2    1    1.3350  116.6000  180.0000 0.000
+    5 H      H     E    4    3    2    1.0100  119.8000    0.0000 0.000
+    6 H      H    M    4    3    2    1.4490  121.9000  180.0000 0.000
+
+  LOOP
+
+   IMPR
+
+CHARGE
+   -0.5200    0.2480    0.2190
+
+DONE
 STOP
 # todo develop parser with charges
 # todo convert OFF to PREP http://research.bmh.manchester.ac.uk/bryce/amber

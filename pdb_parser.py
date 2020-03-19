@@ -9,7 +9,11 @@ from math import sqrt
 from database_parser import database
 
 
-def get_chain(structure: Structure) -> ChainDesc:
+def get_chain(structure: Structure, return_a_chain: bool = False) -> ChainDesc:
+    if return_a_chain:
+        for chain in structure.get_chains():
+            if chain.get_id() == 'A':
+                return chain
     chains = [ChainDesc(chain=c) for c in structure.get_chains()]
 
     # fast return if structure contains a single chain
@@ -123,7 +127,7 @@ def get_ligand(chain: ChainDesc) -> PhysicalResidue:
     return closest_ligand
 
 
-def get_neighbor_atoms(chain: ChainDesc, ligand: PhysicalResidue) -> list:  # a list of physical atoms
+def get_neighbor_atoms(chain: ChainDesc, ligand: PhysicalResidue, produce_physical_atoms: bool = True) -> list:  # a list of physical atoms
     # use biopython neighboursearch to get list of AA atoms that close enough to ligand's atoms (using 10 angstroms)
     # - get list of all chain's atoms except ligand's atoms
     # - for each ligand's atom run neighbor search to find neighbors
@@ -157,6 +161,8 @@ def get_neighbor_atoms(chain: ChainDesc, ligand: PhysicalResidue) -> list:  # a 
         for neighbour in current_neighbours:  # BioPython atom!!!!
             if neighbour not in neighbour_atoms:
                 neighbour_atoms.append(neighbour)
+    if not produce_physical_atoms:
+        return neighbour_atoms
 
     neighbour_physical_atoms = list()
     for neighbour in neighbour_atoms:
@@ -180,3 +186,12 @@ def get_bounding_box(atoms: list) -> BoundingBox:
 
     return box
 
+
+def save_chain_to(chain, filename: str):
+    from Bio.PDB.PDBIO import PDBIO
+    io = PDBIO()
+    # io.set_structure(chain.get_bio_chain())
+    structure = Structure(filename)
+    structure.add(chain)
+    io.set_structure(structure)
+    io.save(filename)

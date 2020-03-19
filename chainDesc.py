@@ -25,6 +25,9 @@ class ChainDesc:
                 terminus = 'C'
 
             residue_desc = database.get_residue(residue, terminus=terminus)
+            if residue_desc is None:
+                continue
+
             physical_residue = PhysicalResidue(index=index, residue_desc=residue_desc)
             physical_atoms = list()
             for atom in residue.get_atoms():  # Biopython Atom!
