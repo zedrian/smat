@@ -208,8 +208,9 @@ if __name__ == '__main__':
     for row_index, pattern_row in patterns.iterrows():
         pattern = create_pattern_from_row(pattern_row, element_process_priority)
         if len(pattern.atoms) == 0:
+            total_matches.append([])
             continue
-        print(f'processing pattern {pattern.name} from PDB {pattern.pdb}')
+        print(f'processing pattern {pattern.name} from {pattern.pdb}')
         matches = find_pattern_matches(pattern, inspecting_atoms, element_process_priority)
         total_matches.append(matches)
 
